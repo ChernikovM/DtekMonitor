@@ -102,9 +102,16 @@ public class SetGroupCommandHandler : CommandHandler<SetGroupCommandHandler>
         sb.AppendLine();
         sb.AppendLine("Тепер ви будете отримувати сповіщення про зміни в графіку відключень.");
         sb.AppendLine();
-        sb.AppendLine("Використовуйте /schedule щоб переглянути поточний графік.");
+        sb.AppendLine("Натисніть <b>📅 Розклад</b> щоб переглянути графік.");
 
-        return sb.ToString();
+        await botClient.SendMessage(
+            chatId: message.Chat.Id,
+            text: sb.ToString(),
+            parseMode: ParseMode.Html,
+            replyMarkup: KeyboardMarkups.MainMenuKeyboard,
+            cancellationToken: cancellationToken);
+
+        return null;
     }
 }
 

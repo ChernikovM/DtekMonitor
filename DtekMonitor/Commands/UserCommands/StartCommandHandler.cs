@@ -1,9 +1,11 @@
 using System.Text;
 using DtekMonitor.Commands.Abstractions;
 using DtekMonitor.Models;
+using DtekMonitor.Services;
 using Microsoft.Extensions.Logging;
 using Telegram.Bot;
 using Telegram.Bot.Types;
+using Telegram.Bot.Types.Enums;
 
 namespace DtekMonitor.Commands.UserCommands;
 
@@ -19,7 +21,7 @@ public class StartCommandHandler : CommandHandler<StartCommandHandler>
     public override string CommandName => "start";
     public override string Description => "Почати роботу з ботом";
 
-    protected override Task<string?> HandleCommandAsync(
+    protected override async Task<string?> HandleCommandAsync(
         ITelegramBotClient botClient,
         Message message,
         string? parameters,
@@ -31,18 +33,25 @@ public class StartCommandHandler : CommandHandler<StartCommandHandler>
         sb.AppendLine();
         sb.AppendLine("Цей бот допоможе вам відстежувати графіки відключення світла ДТЕК.");
         sb.AppendLine();
+        sb.AppendLine("Використовуйте кнопки меню внизу 👇 або команди:");
+        sb.AppendLine();
         sb.AppendLine("📋 <b>Доступні команди:</b>");
-        sb.AppendLine("/setgroup [ГРУПА] - Підписатися на групу (напр. /setgroup GPV4.1)");
-        sb.AppendLine("/mygroup - Показати вашу поточну групу підписки");
-        sb.AppendLine("/schedule - Показати поточний графік для вашої групи");
-        sb.AppendLine("/stop - Відписатися від сповіщень");
+        sb.AppendLine("• /setgroup - Обрати групу відключень");
+        sb.AppendLine("• /schedule - Графік на сьогодні/завтра");
+        sb.AppendLine("• /mygroup - Моя поточна група");
+        sb.AppendLine("• /stop - Відписатися");
         sb.AppendLine();
-        sb.AppendLine("📊 <b>Доступні групи:</b>");
-        sb.AppendLine($"<code>{string.Join(", ", DtekGroups.AllGroups)}</code>");
-        sb.AppendLine();
-        sb.AppendLine("💡 Щоб почати, введіть команду /setgroup з номером вашої групи.");
+        sb.AppendLine("💡 Натисніть <b>📊 Обрати групу</b> щоб почати!");
 
-        return Task.FromResult<string?>(sb.ToString());
+        // Send message with persistent keyboard
+        await botClient.SendMessage(
+            chatId: message.Chat.Id,
+            text: sb.ToString(),
+            parseMode: ParseMode.Html,
+            replyMarkup: KeyboardMarkups.MainMenuKeyboard,
+            cancellationToken: cancellationToken);
+
+        return null; // Don't send another message
     }
 }
 

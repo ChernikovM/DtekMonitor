@@ -1,11 +1,13 @@
 using System.Text;
 using DtekMonitor.Commands.Abstractions;
 using DtekMonitor.Database;
+using DtekMonitor.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Telegram.Bot;
 using Telegram.Bot.Types;
+using Telegram.Bot.Types.Enums;
 
 namespace DtekMonitor.Commands.UserCommands;
 
@@ -44,21 +46,29 @@ public class StopCommandHandler : CommandHandler<StopCommandHandler>
         {
             sb.AppendLine("ℹ️ Ви не були підписані на сповіщення.");
             sb.AppendLine();
-            sb.AppendLine("Використовуйте /setgroup щоб підписатися на групу.");
-            return sb.ToString();
+            sb.AppendLine("Натисніть <b>📊 Обрати групу</b> щоб підписатися.");
+        }
+        else
+        {
+            var groupName = subscriber.GroupName;
+            dbContext.Subscribers.Remove(subscriber);
+            await dbContext.SaveChangesAsync(cancellationToken);
+
+            Logger.LogInformation("Subscriber removed: ChatId={ChatId}, Group={Group}", message.Chat.Id, groupName);
+
+            sb.AppendLine($"✅ Ви успішно відписалися від сповіщень групи <b>{groupName}</b>.");
+            sb.AppendLine();
+            sb.AppendLine("Натисніть <b>📊 Обрати групу</b> щоб підписатися знову.");
         }
 
-        var groupName = subscriber.GroupName;
-        dbContext.Subscribers.Remove(subscriber);
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await botClient.SendMessage(
+            chatId: message.Chat.Id,
+            text: sb.ToString(),
+            parseMode: ParseMode.Html,
+            replyMarkup: KeyboardMarkups.MainMenuKeyboard,
+            cancellationToken: cancellationToken);
 
-        Logger.LogInformation("Subscriber removed: ChatId={ChatId}, Group={Group}", message.Chat.Id, groupName);
-
-        sb.AppendLine($"✅ Ви успішно відписалися від сповіщень групи <b>{groupName}</b>.");
-        sb.AppendLine();
-        sb.AppendLine("Щоб підписатися знову, використовуйте /setgroup.");
-
-        return sb.ToString();
+        return null;
     }
 }
 

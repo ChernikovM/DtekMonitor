@@ -74,16 +74,40 @@ public class CommandHandlerRegistry
         Message message,
         CancellationToken cancellationToken = default)
     {
-        var handler = FindHandler(message);
+        return await HandleMessageAsync(botClient, message, message.Text, cancellationToken);
+    }
+
+    /// <summary>
+    /// Handles an incoming message with overridden command text (for keyboard button mapping)
+    /// </summary>
+    public async Task<bool> HandleMessageAsync(
+        ITelegramBotClient botClient,
+        Message message,
+        string? commandText,
+        CancellationToken cancellationToken = default)
+    {
+        var handler = FindHandlerByText(commandText);
 
         if (handler is null)
         {
-            _logger.LogDebug("No handler found for message: {Text}", message.Text);
+            _logger.LogDebug("No handler found for command: {Text}", commandText);
             return false;
         }
 
-        await handler.RunCommandHandlerPipelineAsync(botClient, message, cancellationToken);
+        await handler.RunCommandHandlerPipelineAsync(botClient, message, commandText, cancellationToken);
         return true;
+    }
+
+    /// <summary>
+    /// Finds a handler by command text
+    /// </summary>
+    private ICommandHandler? FindHandlerByText(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return null;
+
+        var handlers = _serviceProvider.GetServices<ICommandHandler>();
+        return handlers.FirstOrDefault(h => h.CanHandleText(text));
     }
 }
 

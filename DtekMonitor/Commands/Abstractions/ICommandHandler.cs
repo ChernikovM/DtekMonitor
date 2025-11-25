@@ -24,11 +24,25 @@ public interface ICommandHandler
     bool CanHandle(Message message);
 
     /// <summary>
+    /// Determines if this handler can process the given command text
+    /// </summary>
+    bool CanHandleText(string text);
+
+    /// <summary>
     /// Executes the command handler pipeline
     /// </summary>
     Task RunCommandHandlerPipelineAsync(
         ITelegramBotClient botClient,
         Message message,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Executes the command handler pipeline with overridden command text
+    /// </summary>
+    Task RunCommandHandlerPipelineAsync(
+        ITelegramBotClient botClient,
+        Message message,
+        string? commandText,
         CancellationToken cancellationToken = default);
 }
 

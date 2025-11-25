@@ -53,10 +53,16 @@ public abstract class CommandHandler<TCommand> : ICommandHandler
     /// <inheritdoc />
     public virtual bool CanHandle(Message message)
     {
-        if (string.IsNullOrWhiteSpace(message.Text))
+        return CanHandleText(message.Text);
+    }
+
+    /// <inheritdoc />
+    public virtual bool CanHandleText(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
             return false;
 
-        var text = message.Text.Trim();
+        text = text.Trim();
         if (!text.StartsWith('/'))
             return false;
 
@@ -76,8 +82,18 @@ public abstract class CommandHandler<TCommand> : ICommandHandler
         Message message,
         CancellationToken cancellationToken = default)
     {
+        await RunCommandHandlerPipelineAsync(botClient, message, message.Text, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public virtual async Task RunCommandHandlerPipelineAsync(
+        ITelegramBotClient botClient,
+        Message message,
+        string? commandText,
+        CancellationToken cancellationToken = default)
+    {
         string? responseText;
-        var parameters = GetCommandParameters(message.Text);
+        var parameters = GetCommandParameters(commandText);
 
         try
         {

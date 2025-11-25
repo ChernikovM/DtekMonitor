@@ -98,13 +98,22 @@ public class BotService : BackgroundService
             using var scope = _scopeFactory.CreateScope();
             var commandRegistry = scope.ServiceProvider.GetRequiredService<CommandHandlerRegistry>();
 
-            var handled = await commandRegistry.HandleMessageAsync(botClient, message, cancellationToken);
+            // Map keyboard button text to commands
+            var mappedText = MapKeyboardButtonToCommand(message.Text);
+            if (mappedText != message.Text)
+            {
+                _logger.LogDebug("Mapped button '{Button}' to command '{Command}'", message.Text, mappedText);
+            }
+
+            // Try to handle as command (either original or mapped)
+            var handled = await commandRegistry.HandleMessageAsync(botClient, message, mappedText, cancellationToken);
 
             if (!handled && message.Text?.StartsWith('/') == true)
             {
                 await botClient.SendMessage(
                     chatId: message.Chat.Id,
                     text: "❓ Невідома команда. Використовуйте /start для перегляду доступних команд.",
+                    replyMarkup: KeyboardMarkups.MainMenuKeyboard,
                     cancellationToken: cancellationToken);
             }
         }
@@ -187,6 +196,22 @@ public class BotService : BackgroundService
             _logger.LogError(ex, "Failed to send message to {ChatId}", chatId);
         }
     }
+
+    /// <summary>
+    /// Maps keyboard button text to command
+    /// </summary>
+    private static string? MapKeyboardButtonToCommand(string? text)
+    {
+        return text switch
+        {
+            "📅 Розклад" => "/schedule",
+            "📊 Обрати групу" => "/setgroup",
+            "ℹ️ Моя група" => "/mygroup",
+            "❌ Відписатися" => "/stop",
+            _ => text
+        };
+    }
+
 }
 
 

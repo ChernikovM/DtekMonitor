@@ -2,11 +2,13 @@ using System.Text;
 using DtekMonitor.Commands.Abstractions;
 using DtekMonitor.Database;
 using DtekMonitor.Models;
+using DtekMonitor.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Telegram.Bot;
 using Telegram.Bot.Types;
+using Telegram.Bot.Types.Enums;
 
 namespace DtekMonitor.Commands.UserCommands;
 
@@ -45,10 +47,7 @@ public class MyGroupCommandHandler : CommandHandler<MyGroupCommandHandler>
         {
             sb.AppendLine("❌ Ви ще не підписані на жодну групу.");
             sb.AppendLine();
-            sb.AppendLine("Використовуйте /setgroup щоб підписатися.");
-            sb.AppendLine();
-            sb.AppendLine("📊 <b>Доступні групи:</b>");
-            sb.AppendLine($"<code>{string.Join(", ", DtekGroups.AllGroups)}</code>");
+            sb.AppendLine("Натисніть <b>📊 Обрати групу</b> щоб підписатися.");
         }
         else
         {
@@ -60,15 +59,16 @@ public class MyGroupCommandHandler : CommandHandler<MyGroupCommandHandler>
             {
                 sb.AppendLine($"🔄 Останнє оновлення: {subscriber.UpdatedAt:dd.MM.yyyy HH:mm}");
             }
-            
-            sb.AppendLine();
-            sb.AppendLine("💡 <b>Доступні дії:</b>");
-            sb.AppendLine("/schedule - переглянути графік для вашої групи");
-            sb.AppendLine("/setgroup [ГРУПА] - змінити групу");
-            sb.AppendLine("/stop - відписатися від сповіщень");
         }
 
-        return sb.ToString();
+        await botClient.SendMessage(
+            chatId: message.Chat.Id,
+            text: sb.ToString(),
+            parseMode: ParseMode.Html,
+            replyMarkup: KeyboardMarkups.MainMenuKeyboard,
+            cancellationToken: cancellationToken);
+
+        return null;
     }
 }
 
