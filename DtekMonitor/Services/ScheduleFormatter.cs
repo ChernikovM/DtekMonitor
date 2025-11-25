@@ -24,7 +24,9 @@ public static class ScheduleFormatter
         sb.AppendLine($"📅 {dateTime:dd.MM.yyyy}");
         sb.AppendLine();
 
-        var currentHour = showCurrentHourMarker ? DateTime.Now.Hour + 1 : -1; // Hours in data are 1-24
+        // In DTEK data: key "1" = 00:00-01:00, key "2" = 01:00-02:00, etc.
+        // Current hour marker: if it's 14:30, we're in period "15" (14:00-15:00)
+        var currentHourKey = showCurrentHourMarker ? DateTime.Now.Hour + 1 : -1;
 
         for (int hour = 1; hour <= 24; hour++)
         {
@@ -32,13 +34,13 @@ public static class ScheduleFormatter
             var status = groupData.TryGetValue(hourKey, out var s) ? s : "?";
             var statusIcon = PowerStatus.ToShortDisplayString(status);
 
-            // Simplified time format without :00
-            var hourDisplay = hour == 24 ? "00" : hour.ToString("D2");
-            var nextHour = hour == 24 ? "01" : (hour + 1).ToString("D2");
+            // Key "1" = 00:00-01:00, Key "2" = 01:00-02:00, etc.
+            var startHour = (hour - 1).ToString("D2");  // hour 1 -> "00"
+            var endHour = hour == 24 ? "00" : hour.ToString("D2");  // hour 24 -> "00" (next day)
 
-            var marker = hour == currentHour ? "👉 " : "   ";
+            var marker = hour == currentHourKey ? "👉 " : "   ";
 
-            sb.AppendLine($"{marker}<code>{hourDisplay}-{nextHour}</code> {statusIcon}");
+            sb.AppendLine($"{marker}<code>{startHour}-{endHour}</code> {statusIcon}");
         }
 
         sb.AppendLine();

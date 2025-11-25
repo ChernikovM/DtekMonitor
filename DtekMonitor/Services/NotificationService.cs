@@ -180,15 +180,16 @@ public class NotificationService
 
         foreach (var change in changes.OrderBy(c => c.Hour))
         {
-            var hourDisplay = change.Hour == 24 ? "00" : change.Hour.ToString("D2");
-            var nextHour = change.Hour == 24 ? "01" : (change.Hour + 1).ToString("D2");
+            // Key "1" = 00:00-01:00, Key "2" = 01:00-02:00, etc.
+            var startHour = (change.Hour - 1).ToString("D2");
+            var endHour = change.Hour == 24 ? "00" : change.Hour.ToString("D2");
             
             var oldStatusText = change.OldStatus is not null 
                 ? PowerStatus.ToDisplayString(change.OldStatus) 
                 : "❓ Невідомо";
             var newStatusText = PowerStatus.ToDisplayString(change.NewStatus);
 
-            sb.AppendLine($"<code>{hourDisplay}-{nextHour}</code>");
+            sb.AppendLine($"<code>{startHour}-{endHour}</code>");
             sb.AppendLine($"   {oldStatusText} → {newStatusText}");
         }
 
