@@ -40,9 +40,9 @@ public class SetGroupCommandHandler : CommandHandler<SetGroupCommandHandler>
         // If no parameters - show inline keyboard with all groups
         if (string.IsNullOrWhiteSpace(parameters))
         {
-            sb.AppendLine("📊 <b>Оберіть вашу групу відключень:</b>");
+            sb.AppendLine("📊 <b>Оберіть вашу чергу відключень:</b>");
             sb.AppendLine();
-            sb.AppendLine("Натисніть на кнопку з номером вашої групи:");
+            sb.AppendLine("Натисніть на кнопку з номером вашої черги:");
 
             var keyboard = CallbackQueryHandler.CreateGroupSelectionKeyboard();
 
@@ -56,16 +56,19 @@ public class SetGroupCommandHandler : CommandHandler<SetGroupCommandHandler>
             return null; // Don't send another message
         }
 
-        var groupName = DtekGroups.Normalize(parameters);
+        // Normalize to API format
+        var apiGroupName = DtekGroups.Normalize(parameters);
 
-        if (!DtekGroups.IsValidGroup(groupName))
+        if (!DtekGroups.IsValidGroup(parameters))
         {
-            sb.AppendLine($"❌ Невідома група: <code>{parameters}</code>");
+            sb.AppendLine($"❌ Невідома черга: <code>{parameters}</code>");
             sb.AppendLine();
-            sb.AppendLine("📊 <b>Доступні групи:</b>");
-            sb.AppendLine($"<code>{string.Join(", ", DtekGroups.AllGroups)}</code>");
+            sb.AppendLine("📊 <b>Доступні черги:</b>");
+            sb.AppendLine($"<code>{string.Join(", ", DtekGroups.DisplayGroups)}</code>");
             return sb.ToString();
         }
+
+        var displayGroupName = DtekGroups.ToDisplayName(apiGroupName);
 
         using var scope = _scopeFactory.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -78,27 +81,27 @@ public class SetGroupCommandHandler : CommandHandler<SetGroupCommandHandler>
             subscriber = new Subscriber
             {
                 ChatId = message.Chat.Id,
-                GroupName = groupName,
+                GroupName = apiGroupName,
                 Username = message.Chat.Username,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
             dbContext.Subscribers.Add(subscriber);
-            Logger.LogInformation("New subscriber: ChatId={ChatId}, Group={Group}", message.Chat.Id, groupName);
+            Logger.LogInformation("New subscriber: ChatId={ChatId}, Group={Group}", message.Chat.Id, apiGroupName);
         }
         else
         {
             var oldGroup = subscriber.GroupName;
-            subscriber.GroupName = groupName;
+            subscriber.GroupName = apiGroupName;
             subscriber.Username = message.Chat.Username;
             subscriber.UpdatedAt = DateTime.UtcNow;
             Logger.LogInformation("Updated subscriber: ChatId={ChatId}, OldGroup={OldGroup}, NewGroup={NewGroup}",
-                message.Chat.Id, oldGroup, groupName);
+                message.Chat.Id, oldGroup, apiGroupName);
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        sb.AppendLine($"✅ Ви успішно підписані на групу <b>{groupName}</b>!");
+        sb.AppendLine($"✅ Ви успішно підписані на чергу <b>{displayGroupName}</b>!");
         sb.AppendLine();
         sb.AppendLine("Тепер ви будете отримувати сповіщення про зміни в графіку відключень.");
         sb.AppendLine();

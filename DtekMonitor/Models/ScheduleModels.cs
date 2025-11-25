@@ -57,11 +57,27 @@ public static class PowerStatus
 }
 
 /// <summary>
-/// Available DTEK groups
+/// Available DTEK groups (queues)
 /// </summary>
 public static class DtekGroups
 {
-    public static readonly string[] AllGroups =
+    /// <summary>
+    /// Display names for users (matching DTEK website format: "Черга X.Y")
+    /// </summary>
+    public static readonly string[] DisplayGroups =
+    [
+        "1.1", "1.2",
+        "2.1", "2.2",
+        "3.1", "3.2",
+        "4.1", "4.2",
+        "5.1", "5.2",
+        "6.1", "6.2"
+    ];
+
+    /// <summary>
+    /// Internal API names used in DTEK data (GPV prefix)
+    /// </summary>
+    public static readonly string[] ApiGroups =
     [
         "GPV1.1", "GPV1.2",
         "GPV2.1", "GPV2.2",
@@ -71,14 +87,50 @@ public static class DtekGroups
         "GPV6.1", "GPV6.2"
     ];
 
-    public static bool IsValidGroup(string group)
+    /// <summary>
+    /// Converts display name (1.1) to API name (GPV1.1)
+    /// </summary>
+    public static string ToApiName(string displayName)
     {
-        return AllGroups.Contains(group.ToUpperInvariant());
+        var normalized = displayName.Trim().ToUpperInvariant();
+        
+        // If already has GPV prefix, return as is
+        if (normalized.StartsWith("GPV"))
+            return normalized;
+        
+        return $"GPV{normalized}";
     }
 
+    /// <summary>
+    /// Converts API name (GPV1.1) to display name (1.1)
+    /// </summary>
+    public static string ToDisplayName(string apiName)
+    {
+        var normalized = apiName.Trim().ToUpperInvariant();
+        
+        if (normalized.StartsWith("GPV"))
+            return normalized[3..]; // Remove "GPV" prefix
+        
+        return normalized;
+    }
+
+    public static bool IsValidGroup(string group)
+    {
+        var normalized = group.Trim().ToUpperInvariant();
+        
+        // Check both formats
+        if (normalized.StartsWith("GPV"))
+            return ApiGroups.Contains(normalized);
+        
+        return DisplayGroups.Contains(normalized);
+    }
+
+    /// <summary>
+    /// Normalizes any input to API format (GPV prefix)
+    /// </summary>
     public static string Normalize(string group)
     {
-        return group.ToUpperInvariant();
+        return ToApiName(group);
     }
 }
 

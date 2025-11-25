@@ -61,13 +61,13 @@ public class CallbackQueryHandler
     private async Task HandleSetGroupAsync(
         ITelegramBotClient botClient,
         CallbackQuery callbackQuery,
-        string groupName,
+        string groupInput,
         CancellationToken cancellationToken)
     {
         var chatId = callbackQuery.Message!.Chat.Id;
         var messageId = callbackQuery.Message.MessageId;
 
-        if (!DtekGroups.IsValidGroup(groupName))
+        if (!DtekGroups.IsValidGroup(groupInput))
         {
             await botClient.AnswerCallbackQuery(
                 callbackQuery.Id,
@@ -75,6 +75,10 @@ public class CallbackQueryHandler
                 cancellationToken: cancellationToken);
             return;
         }
+
+        // Normalize to API format for storage
+        var apiGroupName = DtekGroups.Normalize(groupInput);
+        var displayGroupName = DtekGroups.ToDisplayName(apiGroupName);
 
         // Update or create subscription
         var subscriber = await _dbContext.Subscribers
@@ -85,25 +89,25 @@ public class CallbackQueryHandler
             subscriber = new Subscriber
             {
                 ChatId = chatId,
-                GroupName = groupName,
+                GroupName = apiGroupName,
                 Username = callbackQuery.From.Username,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
             _dbContext.Subscribers.Add(subscriber);
-            _logger.LogInformation("New subscriber via button: ChatId={ChatId}, Group={Group}", chatId, groupName);
+            _logger.LogInformation("New subscriber via button: ChatId={ChatId}, Group={Group}", chatId, apiGroupName);
         }
         else
         {
-            subscriber.GroupName = groupName;
+            subscriber.GroupName = apiGroupName;
             subscriber.UpdatedAt = DateTime.UtcNow;
-            _logger.LogInformation("Updated subscriber via button: ChatId={ChatId}, Group={Group}", chatId, groupName);
+            _logger.LogInformation("Updated subscriber via button: ChatId={ChatId}, Group={Group}", chatId, apiGroupName);
         }
 
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        // Update the message to show confirmation
-        var responseText = $"✅ Ви підписані на групу <b>{groupName}</b>!\n\n" +
+        // Update the message to show confirmation (display name for user)
+        var responseText = $"✅ Ви підписані на чергу <b>{displayGroupName}</b>!\n\n" +
                           "Тепер ви будете отримувати сповіщення про зміни в графіку.\n\n" +
                           "Натисніть кнопку нижче щоб переглянути розклад:";
 
@@ -111,8 +115,8 @@ public class CallbackQueryHandler
         {
             new[]
             {
-                InlineKeyboardButton.WithCallbackData("📅 Сьогодні", $"{SchedulePrefix}{groupName}:today"),
-                InlineKeyboardButton.WithCallbackData("📆 Завтра", $"{SchedulePrefix}{groupName}:tomorrow")
+                InlineKeyboardButton.WithCallbackData("📅 Сьогодні", $"{SchedulePrefix}{apiGroupName}:today"),
+                InlineKeyboardButton.WithCallbackData("📆 Завтра", $"{SchedulePrefix}{apiGroupName}:tomorrow")
             }
         });
 
@@ -126,7 +130,7 @@ public class CallbackQueryHandler
 
         await botClient.AnswerCallbackQuery(
             callbackQuery.Id,
-            $"✅ Підписано на {groupName}",
+            $"✅ Черга {displayGroupName}",
             cancellationToken: cancellationToken);
     }
 
@@ -243,23 +247,28 @@ public class CallbackQueryHandler
     }
 
     /// <summary>
-    /// Creates inline keyboard for group selection
+    /// Creates inline keyboard for group selection (using display names like "1.1", "3.2")
     /// </summary>
     public static InlineKeyboardMarkup CreateGroupSelectionKeyboard()
     {
         var buttons = new List<InlineKeyboardButton[]>();
 
-        // Create 2 buttons per row
-        for (int i = 0; i < DtekGroups.AllGroups.Length; i += 2)
+        // Create 2 buttons per row using display names
+        for (int i = 0; i < DtekGroups.DisplayGroups.Length; i += 2)
         {
+            var displayName1 = DtekGroups.DisplayGroups[i];
+            var apiName1 = DtekGroups.ApiGroups[i];
+            
             var row = new List<InlineKeyboardButton>
             {
-                InlineKeyboardButton.WithCallbackData(DtekGroups.AllGroups[i], $"{SetGroupPrefix}{DtekGroups.AllGroups[i]}")
+                InlineKeyboardButton.WithCallbackData($"Черга {displayName1}", $"{SetGroupPrefix}{apiName1}")
             };
 
-            if (i + 1 < DtekGroups.AllGroups.Length)
+            if (i + 1 < DtekGroups.DisplayGroups.Length)
             {
-                row.Add(InlineKeyboardButton.WithCallbackData(DtekGroups.AllGroups[i + 1], $"{SetGroupPrefix}{DtekGroups.AllGroups[i + 1]}"));
+                var displayName2 = DtekGroups.DisplayGroups[i + 1];
+                var apiName2 = DtekGroups.ApiGroups[i + 1];
+                row.Add(InlineKeyboardButton.WithCallbackData($"Черга {displayName2}", $"{SetGroupPrefix}{apiName2}"));
             }
 
             buttons.Add(row.ToArray());

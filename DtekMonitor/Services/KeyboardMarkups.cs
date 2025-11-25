@@ -13,7 +13,7 @@ public static class KeyboardMarkups
     public static ReplyKeyboardMarkup MainMenuKeyboard => new(new[]
     {
         new KeyboardButton[] { "📅 Розклад", "📊 Обрати групу" },
-        new KeyboardButton[] { "ℹ️ Моя група", "❌ Відписатися" }
+        new KeyboardButton[] { "ℹ️ Моя група", "❓ Як дізнатись групу" }
     })
     {
         ResizeKeyboard = true,  // Fit buttons to their text

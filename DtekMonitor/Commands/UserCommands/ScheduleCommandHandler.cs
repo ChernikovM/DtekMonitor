@@ -52,12 +52,12 @@ public class ScheduleCommandHandler : CommandHandler<ScheduleCommandHandler>
         if (!string.IsNullOrWhiteSpace(parameters))
         {
             groupName = DtekGroups.Normalize(parameters);
-            if (!DtekGroups.IsValidGroup(groupName))
+            if (!DtekGroups.IsValidGroup(parameters))
             {
-                sb.AppendLine($"❌ Невідома група: <code>{parameters}</code>");
+                sb.AppendLine($"❌ Невідома черга: <code>{parameters}</code>");
                 sb.AppendLine();
-                sb.AppendLine("📊 <b>Доступні групи:</b>");
-                sb.AppendLine($"<code>{string.Join(", ", DtekGroups.AllGroups)}</code>");
+                sb.AppendLine("📊 <b>Доступні черги:</b>");
+                sb.AppendLine($"<code>{string.Join(", ", DtekGroups.DisplayGroups)}</code>");
                 return sb.ToString();
             }
         }
@@ -67,10 +67,9 @@ public class ScheduleCommandHandler : CommandHandler<ScheduleCommandHandler>
         }
         else
         {
-            sb.AppendLine("❌ Ви не підписані на жодну групу.");
+            sb.AppendLine("❌ Ви не підписані на жодну чергу.");
             sb.AppendLine();
-            sb.AppendLine("Використовуйте /setgroup щоб підписатися, або вкажіть групу:");
-            sb.AppendLine("<code>/schedule GPV4.1</code>");
+            sb.AppendLine("Натисніть <b>📊 Обрати групу</b> щоб підписатися.");
             return sb.ToString();
         }
 

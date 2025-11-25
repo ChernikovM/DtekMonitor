@@ -1,6 +1,7 @@
 using System.Text;
 using DtekMonitor.Commands.Abstractions;
 using DtekMonitor.Database;
+using DtekMonitor.Models;
 using DtekMonitor.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -50,13 +51,14 @@ public class StopCommandHandler : CommandHandler<StopCommandHandler>
         }
         else
         {
-            var groupName = subscriber.GroupName;
+            var apiGroupName = subscriber.GroupName;
+            var displayGroupName = DtekGroups.ToDisplayName(apiGroupName);
             dbContext.Subscribers.Remove(subscriber);
             await dbContext.SaveChangesAsync(cancellationToken);
 
-            Logger.LogInformation("Subscriber removed: ChatId={ChatId}, Group={Group}", message.Chat.Id, groupName);
+            Logger.LogInformation("Subscriber removed: ChatId={ChatId}, Group={Group}", message.Chat.Id, apiGroupName);
 
-            sb.AppendLine($"✅ Ви успішно відписалися від сповіщень групи <b>{groupName}</b>.");
+            sb.AppendLine($"✅ Ви успішно відписалися від сповіщень черги <b>{displayGroupName}</b>.");
             sb.AppendLine();
             sb.AppendLine("Натисніть <b>📊 Обрати групу</b> щоб підписатися знову.");
         }

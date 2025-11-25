@@ -20,7 +20,9 @@ public static class ScheduleFormatter
     {
         var sb = new StringBuilder();
         
-        sb.AppendLine($"📊 <b>Графік {groupName}</b> | {dayLabel}");
+        // Show display name (e.g., "3.2" instead of "GPV3.2")
+        var displayName = DtekGroups.ToDisplayName(groupName);
+        sb.AppendLine($"📊 <b>Черга {displayName}</b> | {dayLabel}");
         sb.AppendLine($"📅 {dateTime:dd.MM.yyyy}");
         sb.AppendLine();
 

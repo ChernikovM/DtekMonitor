@@ -45,13 +45,14 @@ public class MyGroupCommandHandler : CommandHandler<MyGroupCommandHandler>
 
         if (subscriber is null)
         {
-            sb.AppendLine("❌ Ви ще не підписані на жодну групу.");
+            sb.AppendLine("❌ Ви ще не підписані на жодну чергу.");
             sb.AppendLine();
             sb.AppendLine("Натисніть <b>📊 Обрати групу</b> щоб підписатися.");
         }
         else
         {
-            sb.AppendLine($"✅ Ваша поточна група: <b>{subscriber.GroupName}</b>");
+            var displayGroupName = DtekGroups.ToDisplayName(subscriber.GroupName);
+            sb.AppendLine($"✅ Ваша поточна черга: <b>{displayGroupName}</b>");
             sb.AppendLine();
             sb.AppendLine($"📅 Підписка створена: {subscriber.CreatedAt:dd.MM.yyyy HH:mm}");
             
