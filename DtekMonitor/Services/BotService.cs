@@ -9,6 +9,7 @@ using Telegram.Bot.Exceptions;
 using Telegram.Bot.Polling;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
+using Telegram.Bot.Types.ReplyMarkups;
 
 namespace DtekMonitor.Services;
 
@@ -47,7 +48,7 @@ public class BotService : BackgroundService
     {
         var receiverOptions = new ReceiverOptions
         {
-            AllowedUpdates = [UpdateType.Message],
+            AllowedUpdates = [UpdateType.Message, UpdateType.CallbackQuery],
             DropPendingUpdates = true
         };
 
@@ -78,6 +79,13 @@ public class BotService : BackgroundService
         Update update,
         CancellationToken cancellationToken)
     {
+        // Handle callback queries (button presses)
+        if (update.CallbackQuery is { } callbackQuery)
+        {
+            await HandleCallbackQueryAsync(botClient, callbackQuery, cancellationToken);
+            return;
+        }
+
         if (update.Message is not { } message)
             return;
 
@@ -103,6 +111,37 @@ public class BotService : BackgroundService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error processing message from {ChatId}", message.Chat.Id);
+        }
+    }
+
+    private async Task HandleCallbackQueryAsync(
+        ITelegramBotClient botClient,
+        CallbackQuery callbackQuery,
+        CancellationToken cancellationToken)
+    {
+        if (callbackQuery.Data is null || callbackQuery.Message is null)
+            return;
+
+        _logger.LogDebug("Received callback from {ChatId}: {Data}",
+            callbackQuery.Message.Chat.Id,
+            callbackQuery.Data);
+
+        try
+        {
+            using var scope = _scopeFactory.CreateScope();
+            var callbackHandler = scope.ServiceProvider.GetRequiredService<CallbackQueryHandler>();
+
+            await callbackHandler.HandleAsync(botClient, callbackQuery, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error processing callback from {ChatId}", callbackQuery.Message.Chat.Id);
+            
+            // Answer callback to remove loading state
+            await botClient.AnswerCallbackQuery(
+                callbackQuery.Id,
+                "❌ Помилка обробки",
+                cancellationToken: cancellationToken);
         }
     }
 

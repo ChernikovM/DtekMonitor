@@ -24,6 +24,9 @@ CommandHandlerRegistry.RegisterAllHandlers(builder.Services);
 // Services (Singletons that manage their own lifecycle)
 builder.Services.AddSingleton<DtekScraper>();
 
+// Callback query handler (scoped - needs DbContext)
+builder.Services.AddScoped<CallbackQueryHandler>();
+
 // BotService needs to be registered as Singleton first, then as HostedService
 // This allows other services (like NotificationService) to inject it
 builder.Services.AddSingleton<BotService>();

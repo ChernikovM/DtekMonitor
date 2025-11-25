@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Telegram.Bot;
 using Telegram.Bot.Types;
+using Telegram.Bot.Types.Enums;
 
 namespace DtekMonitor.Commands.UserCommands;
 
@@ -82,10 +83,6 @@ public class ScheduleCommandHandler : CommandHandler<ScheduleCommandHandler>
             return sb.ToString();
         }
 
-        sb.AppendLine($"📊 <b>Графік відключень для групи {groupName}</b>");
-        sb.AppendLine($"🕐 Оновлено: {scheduleData.Update}");
-        sb.AppendLine();
-
         // Get today's timestamp
         var todayTimestamp = scheduleData.Today.ToString();
 
@@ -101,34 +98,23 @@ public class ScheduleCommandHandler : CommandHandler<ScheduleCommandHandler>
             return sb.ToString();
         }
 
-        sb.AppendLine("<b>Сьогодні:</b>");
-        sb.AppendLine();
-        
-        // Display schedule in a compact format
-        var currentHour = DateTime.Now.Hour + 1; // Hours in data are 1-24
-        
-        for (int hour = 1; hour <= 24; hour++)
-        {
-            var hourKey = hour.ToString();
-            var status = groupData.TryGetValue(hourKey, out var s) ? s : "?";
-            var statusIcon = PowerStatus.ToShortDisplayString(status);
-            
-            var hourDisplay = hour == 24 ? "00" : hour.ToString("D2");
-            var nextHour = hour == 24 ? "01" : (hour + 1).ToString("D2");
-            
-            var marker = hour == currentHour ? "👉 " : "   ";
-            
-            sb.AppendLine($"{marker}<code>{hourDisplay}:00-{nextHour}:00</code> {statusIcon}");
-        }
+        // Format schedule using the helper
+        var dateTime = ScheduleFormatter.TimestampToDateTime(scheduleData.Today);
+        var scheduleText = ScheduleFormatter.FormatDaySchedule(groupData, groupName, "Сьогодні", dateTime, showCurrentHourMarker: true);
+        scheduleText += $"\n🕐 Оновлено: {scheduleData.Update}";
 
-        sb.AppendLine();
-        sb.AppendLine("<b>Легенда:</b>");
-        sb.AppendLine("✅ - світло є");
-        sb.AppendLine("🔴 - світла немає");
-        sb.AppendLine("⚠️½ - частково (перша половина)");
-        sb.AppendLine("½⚠️ - частково (друга половина)");
+        // Create keyboard with Today/Tomorrow buttons
+        var tomorrowAvailable = ScheduleFormatter.IsTomorrowAvailable(scheduleData);
+        var keyboard = CallbackQueryHandler.CreateScheduleKeyboard(groupName, "today", tomorrowAvailable);
 
-        return sb.ToString();
+        await botClient.SendMessage(
+            chatId: message.Chat.Id,
+            text: scheduleText,
+            parseMode: ParseMode.Html,
+            replyMarkup: keyboard,
+            cancellationToken: cancellationToken);
+
+        return null; // Don't send another message
     }
 }
 

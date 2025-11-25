@@ -2,11 +2,13 @@ using System.Text;
 using DtekMonitor.Commands.Abstractions;
 using DtekMonitor.Database;
 using DtekMonitor.Models;
+using DtekMonitor.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Telegram.Bot;
 using Telegram.Bot.Types;
+using Telegram.Bot.Types.Enums;
 
 namespace DtekMonitor.Commands.UserCommands;
 
@@ -35,15 +37,23 @@ public class SetGroupCommandHandler : CommandHandler<SetGroupCommandHandler>
     {
         var sb = new StringBuilder();
 
+        // If no parameters - show inline keyboard with all groups
         if (string.IsNullOrWhiteSpace(parameters))
         {
-            sb.AppendLine("❌ Будь ласка, вкажіть групу.");
+            sb.AppendLine("📊 <b>Оберіть вашу групу відключень:</b>");
             sb.AppendLine();
-            sb.AppendLine("Приклад: <code>/setgroup GPV4.1</code>");
-            sb.AppendLine();
-            sb.AppendLine("📊 <b>Доступні групи:</b>");
-            sb.AppendLine($"<code>{string.Join(", ", DtekGroups.AllGroups)}</code>");
-            return sb.ToString();
+            sb.AppendLine("Натисніть на кнопку з номером вашої групи:");
+
+            var keyboard = CallbackQueryHandler.CreateGroupSelectionKeyboard();
+
+            await botClient.SendMessage(
+                chatId: message.Chat.Id,
+                text: sb.ToString(),
+                parseMode: ParseMode.Html,
+                replyMarkup: keyboard,
+                cancellationToken: cancellationToken);
+
+            return null; // Don't send another message
         }
 
         var groupName = DtekGroups.Normalize(parameters);

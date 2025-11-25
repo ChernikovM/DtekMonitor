@@ -51,53 +51,94 @@ public class NotificationService
             .GroupBy(s => s.GroupName)
             .ToDictionary(g => g.Key, g => g.ToList());
 
+        // Check if tomorrow's schedule just appeared
+        var oldHasTomorrow = ScheduleFormatter.IsTomorrowAvailable(oldData);
+        var newHasTomorrow = ScheduleFormatter.IsTomorrowAvailable(newData);
+        var tomorrowJustAppeared = !oldHasTomorrow && newHasTomorrow;
+
+        if (tomorrowJustAppeared)
+        {
+            _logger.LogInformation("Tomorrow's schedule just appeared! Notifying all subscribers.");
+        }
+
         // Compare data for each group that has subscribers
         foreach (var (groupName, groupSubscribers) in subscribersByGroup)
         {
-            var changes = GetGroupChanges(oldData, newData, groupName);
+            var todayChanges = GetGroupChanges(oldData, newData, groupName, newData.Today);
+            var tomorrowChanges = tomorrowJustAppeared 
+                ? GetGroupChanges(oldData, newData, groupName, ScheduleFormatter.GetTomorrowTimestamp(newData.Today))
+                : new List<ScheduleChange>();
 
-            if (changes.Count == 0)
-                continue;
-
-            var message = BuildChangeNotification(groupName, changes, newData.Update);
-
-            _logger.LogInformation("Sending notification to {Count} subscribers of group {Group}",
-                groupSubscribers.Count, groupName);
-
-            foreach (var subscriber in groupSubscribers)
+            // Notify about tomorrow's schedule appearing
+            if (tomorrowJustAppeared)
             {
-                await _botService.SendMessageAsync(subscriber.ChatId, message, cancellationToken);
+                var tomorrowMessage = BuildTomorrowAppearedNotification(groupName, newData);
                 
-                // Small delay to avoid rate limiting
-                await Task.Delay(50, cancellationToken);
+                _logger.LogInformation("Sending tomorrow notification to {Count} subscribers of group {Group}",
+                    groupSubscribers.Count, groupName);
+
+                foreach (var subscriber in groupSubscribers)
+                {
+                    await _botService.SendMessageAsync(subscriber.ChatId, tomorrowMessage, cancellationToken);
+                    await Task.Delay(50, cancellationToken);
+                }
+            }
+
+            // Notify about today's changes
+            if (todayChanges.Count > 0)
+            {
+                var message = BuildChangeNotification(groupName, todayChanges, newData.Update, "Сьогодні");
+
+                _logger.LogInformation("Sending today changes notification to {Count} subscribers of group {Group}",
+                    groupSubscribers.Count, groupName);
+
+                foreach (var subscriber in groupSubscribers)
+                {
+                    await _botService.SendMessageAsync(subscriber.ChatId, message, cancellationToken);
+                    await Task.Delay(50, cancellationToken);
+                }
+            }
+
+            // Notify about tomorrow's changes (if it was already available before)
+            if (!tomorrowJustAppeared && tomorrowChanges.Count > 0)
+            {
+                var message = BuildChangeNotification(groupName, tomorrowChanges, newData.Update, "Завтра");
+
+                _logger.LogInformation("Sending tomorrow changes notification to {Count} subscribers of group {Group}",
+                    groupSubscribers.Count, groupName);
+
+                foreach (var subscriber in groupSubscribers)
+                {
+                    await _botService.SendMessageAsync(subscriber.ChatId, message, cancellationToken);
+                    await Task.Delay(50, cancellationToken);
+                }
             }
         }
     }
 
     /// <summary>
-    /// Gets the changes for a specific group between old and new data
+    /// Gets the changes for a specific group between old and new data for a specific day
     /// </summary>
     private List<ScheduleChange> GetGroupChanges(
         DtekScheduleData oldData,
         DtekScheduleData newData,
-        string groupName)
+        string groupName,
+        long dayTimestamp)
     {
         var changes = new List<ScheduleChange>();
+        var timestampKey = dayTimestamp.ToString();
 
-        // Check today's data
-        var todayTimestamp = newData.Today.ToString();
-
-        if (!newData.Data.TryGetValue(todayTimestamp, out var newTodayData))
+        if (!newData.Data.TryGetValue(timestampKey, out var newDayData))
             return changes;
 
-        if (!newTodayData.TryGetValue(groupName, out var newGroupData))
+        if (!newDayData.TryGetValue(groupName, out var newGroupData))
             return changes;
 
         // Get old data for comparison
         Dictionary<string, string>? oldGroupData = null;
-        if (oldData.Data.TryGetValue(todayTimestamp, out var oldTodayData))
+        if (oldData.Data.TryGetValue(timestampKey, out var oldDayData))
         {
-            oldTodayData.TryGetValue(groupName, out oldGroupData);
+            oldDayData.TryGetValue(groupName, out oldGroupData);
         }
 
         // Compare each hour
@@ -128,11 +169,12 @@ public class NotificationService
     private string BuildChangeNotification(
         string groupName,
         List<ScheduleChange> changes,
-        string updateTime)
+        string updateTime,
+        string dayLabel)
     {
         var sb = new StringBuilder();
 
-        sb.AppendLine($"🔔 <b>Зміни в графіку для групи {groupName}</b>");
+        sb.AppendLine($"🔔 <b>Зміни в графіку {groupName}</b> | {dayLabel}");
         sb.AppendLine($"🕐 Оновлено: {updateTime}");
         sb.AppendLine();
 
@@ -146,8 +188,53 @@ public class NotificationService
                 : "❓ Невідомо";
             var newStatusText = PowerStatus.ToDisplayString(change.NewStatus);
 
-            sb.AppendLine($"<code>{hourDisplay}:00-{nextHour}:00</code>");
+            sb.AppendLine($"<code>{hourDisplay}-{nextHour}</code>");
             sb.AppendLine($"   {oldStatusText} → {newStatusText}");
+        }
+
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Builds notification when tomorrow's schedule just appeared
+    /// </summary>
+    private string BuildTomorrowAppearedNotification(string groupName, DtekScheduleData data)
+    {
+        var sb = new StringBuilder();
+
+        sb.AppendLine($"📆 <b>З'явився розклад на завтра!</b>");
+        sb.AppendLine($"Група: <b>{groupName}</b>");
+        sb.AppendLine($"🕐 Оновлено: {data.Update}");
+        sb.AppendLine();
+
+        var tomorrowTimestamp = ScheduleFormatter.GetTomorrowTimestamp(data.Today);
+        
+        if (data.Data.TryGetValue(tomorrowTimestamp.ToString(), out var tomorrowData) &&
+            tomorrowData.TryGetValue(groupName, out var groupData))
+        {
+            var dateTime = ScheduleFormatter.TimestampToDateTime(tomorrowTimestamp);
+            sb.AppendLine($"📅 {dateTime:dd.MM.yyyy}");
+            sb.AppendLine();
+
+            // Show brief summary
+            var noLightHours = groupData.Count(kvp => kvp.Value == PowerStatus.No);
+            var partialHours = groupData.Count(kvp => kvp.Value == PowerStatus.First || kvp.Value == PowerStatus.Second);
+
+            if (noLightHours > 0)
+            {
+                sb.AppendLine($"🔴 Відключення: {noLightHours} год.");
+            }
+            if (partialHours > 0)
+            {
+                sb.AppendLine($"⚠️ Частково: {partialHours} год.");
+            }
+            if (noLightHours == 0 && partialHours == 0)
+            {
+                sb.AppendLine("✅ Відключень не заплановано!");
+            }
+
+            sb.AppendLine();
+            sb.AppendLine("Використовуйте /schedule щоб переглянути детальний розклад.");
         }
 
         return sb.ToString();
