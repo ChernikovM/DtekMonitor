@@ -1,0 +1,30 @@
+# Build results
+bin/
+obj/
+.idea
+.idea/
+/.idea/
+
+# User-specific files
+*.user
+*.userosscache
+*.suo
+*.cache
+
+# IDE
+.idea/
+.vs/
+*.swp
+
+# Environment files with secrets
+.env
+*.local
+
+# Logs
+logs/
+*.log
+
+# Docker
+docker-compose.override.yml
+
+

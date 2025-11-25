@@ -1,0 +1,46 @@
+services:
+  dtek-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dtek-monitor
+    restart: unless-stopped
+    environment:
+      - TZ=Europe/Kiev
+      - TELEGRAM__BOTTOKEN=${TELEGRAM__BOTTOKEN}
+      - CONNECTIONSTRINGS__DEFAULTCONNECTION=Host=postgres;Database=dtekmonitor;Username=postgres;Password=${POSTGRES_PASSWORD}
+      - Scraper__CheckIntervalSeconds=60
+      - Scraper__WaitTimeSeconds=10
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - dtek-network
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: dtek-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=dtekmonitor
+      - TZ=Europe/Kiev
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d dtekmonitor"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - dtek-network
+
+networks:
+  dtek-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+
+
