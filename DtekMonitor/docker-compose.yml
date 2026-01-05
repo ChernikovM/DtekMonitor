@@ -5,10 +5,17 @@ services:
       dockerfile: Dockerfile
     container_name: dtek-monitor
     restart: unless-stopped
+    ports:
+      - "5000:5000"  # Management API (Swagger, Analytics, Broadcast)
     environment:
       - TZ=Europe/Kiev
-      - TELEGRAM__BOTTOKEN=${TELEGRAM__BOTTOKEN}
-      - CONNECTIONSTRINGS__DEFAULTCONNECTION=Host=postgres;Database=dtekmonitor;Username=postgres;Password=${POSTGRES_PASSWORD}
+      # === Telegram Bot Config (secret from .env) ===
+      - TelegramBotConfig__BotToken=${TELEGRAM_BOT_TOKEN}
+      # === Database Config (secret password from .env) ===
+      - TelegramDatabaseConfig__Password=${POSTGRES_PASSWORD}
+      # === Management API Config (secret API key from .env) ===
+      - ManagementConfig__ApiKeys__0=${MANAGEMENT_API_KEY}
+      # === Scraper Settings ===
       - Scraper__CheckIntervalSeconds=60
       - Scraper__WaitTimeSeconds=10
     depends_on:
@@ -42,5 +49,3 @@ networks:
 
 volumes:
   postgres-data:
-
-

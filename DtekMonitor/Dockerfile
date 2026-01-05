@@ -1,5 +1,5 @@
 # Build stage
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
 
 # Copy csproj and restore dependencies
@@ -29,6 +29,7 @@ COPY --from=publish /app/publish .
 ENV DOTNET_RUNNING_IN_CONTAINER=true
 ENV ASPNETCORE_ENVIRONMENT=Production
 
+# Expose port for Management API (Swagger, Analytics)
+EXPOSE 5000
+
 ENTRYPOINT ["dotnet", "DtekMonitor.dll"]
-
-

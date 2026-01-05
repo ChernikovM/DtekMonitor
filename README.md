@@ -1,11 +1,12 @@
 # 🔌 DTEK Monitor — Telegram-бот для моніторингу відключень світла
 
-[![.NET 8](https://img.shields.io/badge/.NET-8.0-512BD4)](https://dotnet.microsoft.com/)
+[![.NET 9](https://img.shields.io/badge/.NET-9.0-512BD4)](https://dotnet.microsoft.com/)
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED)](https://www.docker.com/)
 [![Telegram Bot](https://img.shields.io/badge/Telegram-Bot-26A5E4)](https://core.telegram.org/bots)
+[![Bedrock SDK](https://img.shields.io/badge/Bedrock-SDK-orange)](https://github.com/spacebar/bedrock)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-**DTEK Monitor** — це Telegram-бот на .NET 8, який відстежує графіки планових відключень електроенергії від ДТЕК (Київська область) та надсилає користувачам сповіщення про зміни в розкладі.
+**DTEK Monitor** — це Telegram-бот на .NET 9, який відстежує графіки планових відключень електроенергії від ДТЕК (Київська область) та надсилає користувачам сповіщення про зміни в розкладі.
 
 ---
 
@@ -17,6 +18,7 @@
 - [Технології](#-технології)
 - [Швидкий старт](#-швидкий-старт)
 - [Конфігурація](#-конфігурація)
+- [Management API](#-management-api)
 - [Команди бота](#-команди-бота)
 - [Структура проекту](#-структура-проекту)
 - [Розгортання на VPS](#-розгортання-на-vps)
@@ -33,6 +35,8 @@
 - 👥 **Підписка на чергу** — оберіть свою чергу (1.1 - 6.2) і отримуйте персоналізовані сповіщення
 - 🎯 **Зручне меню** — кнопки внизу чата для швидкого доступу до функцій
 - ❓ **Інструкція** — як дізнатись свою чергу на сайті ДТЕК
+- 📊 **Management API** — аналітика, статистика та масові розсилки через REST API
+- 🔐 **Swagger UI** — документація API з можливістю тестування
 
 ---
 
@@ -47,6 +51,12 @@
          │                       │                       │
     Playwright              PostgreSQL              Сповіщення
     (скрапінг)              (підписки)              про зміни
+                                 │
+                                 ▼
+                        ┌─────────────────┐
+                        │  Management API │
+                        │  (Swagger UI)   │
+                        └─────────────────┘
 ```
 
 ### Цикл роботи
@@ -56,7 +66,7 @@
 3. Дані витягуються з JavaScript-змінної `DisconSchedule.fact` на сторінці
 4. **Worker** порівнює нові дані з попередніми
 5. При виявленні змін — **NotificationService** надсилає повідомлення всім підписникам відповідних черг
-6. **BotService** обробляє команди користувачів та кнопки меню
+6. **Bedrock SDK** обробляє команди користувачів, логує аналітику та надає Management API
 
 ---
 
@@ -66,63 +76,64 @@
 
 ```
 DtekMonitor/
-├── Program.cs                 # Точка входу, налаштування DI
+├── Program.cs                 # Точка входу, налаштування Bedrock SDK
 ├── Worker.cs                  # Головний фоновий процес моніторингу
 │
-├── Services/
-│   ├── DtekScraper.cs        # Скрапінг сайту ДТЕК через Playwright
-│   ├── BotService.cs         # Telegram Bot API, обробка повідомлень
-│   ├── NotificationService.cs # Формування та відправка сповіщень
-│   ├── CallbackQueryHandler.cs# Обробка натискань inline-кнопок
-│   ├── ScheduleFormatter.cs  # Форматування розкладу для відображення
-│   └── KeyboardMarkups.cs    # Клавіатури бота (меню)
+├── Commands/UserCommands/     # Команди Telegram бота (Bedrock SDK)
+│   ├── StartCommandHandler.cs     # /start
+│   ├── SetGroupCommandHandler.cs  # /setgroup + кнопка меню
+│   ├── ScheduleCommandHandler.cs  # /schedule + кнопка меню
+│   ├── MyGroupCommandHandler.cs   # /mygroup + кнопка меню
+│   ├── StopCommandHandler.cs      # /stop
+│   └── HowToCommandHandler.cs     # /howto + кнопка меню
 │
-├── Commands/
-│   ├── Abstractions/
-│   │   ├── ICommandHandler.cs    # Інтерфейс команди
-│   │   └── CommandHandler.cs     # Базовий клас команди
-│   ├── CommandHandlerRegistry.cs # Автореєстрація команд
-│   └── UserCommands/
-│       ├── StartCommandHandler.cs    # /start
-│       ├── SetGroupCommandHandler.cs # /setgroup
-│       ├── ScheduleCommandHandler.cs # /schedule
-│       ├── MyGroupCommandHandler.cs  # /mygroup
-│       ├── StopCommandHandler.cs     # /stop
-│       └── HowToCommandHandler.cs    # /howto
+├── Middleware/
+│   └── DtekCallbackMiddleware.cs  # Обробка inline-кнопок
+│
+├── Services/
+│   ├── DtekScraper.cs         # Скрапінг сайту ДТЕК через Playwright
+│   ├── NotificationService.cs  # Формування та відправка сповіщень
+│   ├── ScheduleFormatter.cs    # Форматування розкладу для відображення
+│   ├── ScheduleKeyboards.cs    # Inline-клавіатури
+│   └── KeyboardMarkups.cs      # Reply-клавіатури бота (меню)
+│
+├── Configurations/            # Bedrock SDK конфігурації
+│   ├── TelegramBotConfig.json     # Налаштування бота
+│   ├── TelegramDatabaseConfig.json # Налаштування БД
+│   └── ManagementConfig.json      # Налаштування Management API
 │
 ├── Models/
-│   ├── ScheduleModels.cs     # Моделі даних ДТЕК
-│   └── Subscriber.cs         # Entity підписника
+│   ├── ScheduleModels.cs      # Моделі даних ДТЕК
+│   └── Subscriber.cs          # Entity підписника
 │
 ├── Database/
-│   └── AppDbContext.cs       # EF Core контекст
+│   └── AppDbContext.cs        # EF Core контекст з Bedrock SDK
 │
 └── Settings/
-    ├── TelegramSettings.cs   # Налаштування бота
-    └── ScraperSettings.cs    # Налаштування скрапера
+    └── ScraperSettings.cs     # Налаштування скрапера
 ```
 
-### Модульна архітектура команд
+### Bedrock SDK Integration
 
-Команди бота реалізовані за патерном **Command Handler**:
+Проект використовує **Spacebar.Bedrock SDK** для:
+
+- 🤖 **Telegram Bot** — обробка команд та повідомлень
+- 📊 **Analytics** — автоматичне логування всіх взаємодій
+- 🔐 **Management API** — REST API для аналітики та broadcast
+- 📖 **Swagger UI** — документація API
 
 ```csharp
-// Кожна команда — окремий клас
-public class StartCommandHandler : CommandHandler<StartCommandHandler>
+// Приклад команди з підтримкою кнопок меню
+public class ScheduleCommandHandler : CommandHandler<ScheduleCommandHandler>
 {
-    public override string CommandName => "start";
+    public override string CommandName => "schedule";
+    public override IReadOnlyList<string> Aliases => ["📅 Розклад"]; // Кнопка меню
     
-    protected override async Task<string?> HandleCommandAsync(...)
+    protected override async Task<string?> ExecuteAsync(UpdateContext context)
     {
         // Логіка команди
     }
 }
-```
-
-Команди автоматично реєструються при старті через рефлексію:
-
-```csharp
-CommandHandlerRegistry.RegisterAllHandlers(builder.Services);
 ```
 
 ---
@@ -131,10 +142,11 @@ CommandHandlerRegistry.RegisterAllHandlers(builder.Services);
 
 | Компонент | Технологія | Версія |
 |-----------|-----------|--------|
-| Framework | .NET | 8.0 |
+| Framework | .NET | 9.0 |
+| SDK | Spacebar.Bedrock | 0.0.0-alpha.0.7 |
 | Скрапінг | Microsoft.Playwright | 1.48.0 |
 | Telegram | Telegram.Bot | 22.4.4 |
-| База даних | PostgreSQL + EF Core | 16 + 8.0.10 |
+| База даних | PostgreSQL + EF Core | 16 + 9.0.0 |
 | JSON | Newtonsoft.Json | 13.0.4 |
 | Контейнеризація | Docker | - |
 
@@ -161,75 +173,146 @@ CommandHandlerRegistry.RegisterAllHandlers(builder.Services);
 
 ```bash
 git clone https://github.com/your-username/dtek-monitor.git
-cd dtek-monitor/DtekMonitor
+cd dtek-monitor/DtekMonitor/DtekMonitor
 ```
 
 2. **Створіть файл `.env`**
 
 ```bash
 cp .env.example .env
+nano .env
 ```
 
-Відредагуйте `.env`:
+Заповніть значення:
 
 ```env
-TELEGRAM__BOTTOKEN=123456789:ABCdefGHIjklMNOpqrsTUVwxyz
+TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrsTUVwxyz
 POSTGRES_PASSWORD=your_secure_password_here
+MANAGEMENT_API_KEY=your_random_api_key_here
 ```
+
+> 💡 Згенерувати API ключ: `openssl rand -hex 32`
 
 3. **Запустіть**
 
 ```bash
-docker-compose up -d --build
+docker compose up -d --build
 ```
 
 4. **Перевірте логи**
 
 ```bash
-docker-compose logs -f dtek-app
+docker compose logs -f dtek-app
 ```
 
 Ви повинні побачити:
 ```
-Bot started: @YourBotName
-Successfully fetched schedule data
+Bot started: @dtek_krem_bot
+Swagger UI enabled at /api/management/swagger
+Database initialized successfully
+```
+
+5. **Відкрийте Swagger UI**
+
+```
+http://localhost:5000/api/management/swagger
 ```
 
 ---
 
 ## ⚙️ Конфігурація
 
-### Змінні оточення
+### Змінні оточення (.env)
 
 | Змінна | Опис | Обов'язково |
 |--------|------|-------------|
-| `TELEGRAM__BOTTOKEN` | Токен Telegram бота | ✅ |
+| `TELEGRAM_BOT_TOKEN` | Токен Telegram бота | ✅ |
 | `POSTGRES_PASSWORD` | Пароль PostgreSQL | ✅ |
-| `Scraper__CheckIntervalSeconds` | Інтервал перевірки (сек) | ❌ (60) |
-| `Scraper__WaitTimeSeconds` | Час очікування WAF (сек) | ❌ (10) |
-| `TZ` | Часовий пояс | ❌ (Europe/Kiev) |
+| `MANAGEMENT_API_KEY` | API ключ для Management API | ✅ |
 
-### appsettings.json
+### Конфігураційні файли (Configurations/)
 
+**TelegramBotConfig.json:**
 ```json
 {
-  "Telegram": {
-    "BotToken": ""
-  },
-  "Scraper": {
-    "TargetUrl": "https://www.dtek-krem.com.ua/ua/shutdowns",
-    "CheckIntervalSeconds": 60,
-    "WaitTimeSeconds": 10,
-    "UserAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36...",
-    "ViewportWidth": 1920,
-    "ViewportHeight": 1080,
-    "Locale": "uk-UA",
-    "TimezoneId": "Europe/Kiev"
-  },
-  "ConnectionStrings": {
-    "DefaultConnection": "Host=localhost;Database=dtekmonitor;Username=postgres;Password=..."
+  "TelegramBotConfig": {
+    "BotToken": "",
+    "BotUsername": "dtek_krem_bot",
+    "DropPendingUpdates": true,
+    "EnableCommandRouting": true,
+    "UnknownCommandMessage": "❓ Невідома команда..."
   }
 }
+```
+
+**TelegramDatabaseConfig.json:**
+```json
+{
+  "TelegramDatabaseConfig": {
+    "Host": "postgres",
+    "Port": 5432,
+    "Database": "dtekmonitor",
+    "Username": "postgres",
+    "Password": "",
+    "Provider": "PostgreSQL"
+  }
+}
+```
+
+**ManagementConfig.json:**
+```json
+{
+  "ManagementConfig": {
+    "ApiKeys": [],
+    "RoutePrefix": "api/management",
+    "EnablePushNotifications": false
+  }
+}
+```
+
+> ⚠️ **Секрети** (BotToken, Password, ApiKeys) передаються через environment variables і **перезаписують** значення з JSON файлів.
+
+### Налаштування скрапера (docker-compose.yml)
+
+| Параметр | Опис | Default |
+|----------|------|---------|
+| `Scraper__CheckIntervalSeconds` | Інтервал перевірки (сек) | 60 |
+| `Scraper__WaitTimeSeconds` | Час очікування WAF (сек) | 10 |
+
+---
+
+## 📊 Management API
+
+### Endpoints
+
+| Endpoint | Метод | Опис |
+|----------|-------|------|
+| `/api/management/health` | GET | Перевірка здоров'я |
+| `/api/management/info` | GET | Інформація про бота |
+| `/api/management/stats` | GET | Загальна статистика |
+| `/api/management/stats/users` | GET | Статистика користувачів |
+| `/api/management/stats/messages` | GET | Статистика повідомлень |
+| `/api/management/broadcast` | POST | Масова розсилка |
+| `/api/management/swagger` | GET | Swagger UI |
+
+### Аутентифікація
+
+Всі endpoints (крім `/health`) потребують API ключ:
+
+```bash
+curl -H "X-Api-Key: your-api-key" http://localhost:5000/api/management/stats
+```
+
+### Приклад: Масова розсилка
+
+```bash
+curl -X POST http://localhost:5000/api/management/broadcast \
+  -H "X-Api-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "message": "📢 Важливе повідомлення для всіх користувачів!",
+    "parseMode": "Html"
+  }'
 ```
 
 ---
@@ -267,7 +350,9 @@ Successfully fetched schedule data
 DtekMonitor/
 ├── DtekMonitor/              # Основний проект
 │   ├── Commands/             # Команди Telegram бота
+│   ├── Configurations/       # Bedrock SDK конфіги
 │   ├── Database/             # EF Core контекст
+│   ├── Middleware/           # Telegram middleware
 │   ├── Models/               # Моделі даних
 │   ├── Services/             # Бізнес-логіка
 │   ├── Settings/             # Класи конфігурації
@@ -275,8 +360,7 @@ DtekMonitor/
 │   ├── Worker.cs             # Background worker
 │   ├── Dockerfile            # Docker образ
 │   ├── docker-compose.yml    # Docker Compose
-│   ├── appsettings.json      # Конфігурація
-│   └── DtekMonitor.csproj    # Файл проекту
+│   └── .env.example          # Приклад змінних оточення
 │
 ├── DtekMonitor.sln           # Solution файл
 └── README.md                 # Документація
@@ -313,10 +397,13 @@ git clone https://github.com/your-username/dtek-monitor.git
 cd dtek-monitor/DtekMonitor/DtekMonitor
 
 # Створення .env
-cat > .env << EOF
-TELEGRAM__BOTTOKEN=your_bot_token_here
-POSTGRES_PASSWORD=your_secure_password_here
-EOF
+cp .env.example .env
+nano .env
+
+# Заповніть:
+# TELEGRAM_BOT_TOKEN=your_bot_token
+# POSTGRES_PASSWORD=your_db_password
+# MANAGEMENT_API_KEY=your_api_key
 
 # Безпека
 chmod 600 .env
@@ -336,33 +423,43 @@ docker compose ps
 
 # Логи
 docker compose logs -f dtek-app
+
+# Перевірка API
+curl http://localhost:5000/api/management/health
 ```
 
 ### 5. Автозапуск після перезавантаження
 
 Docker Compose з `restart: unless-stopped` автоматично перезапустить контейнери.
 
-Переконайтесь, що Docker запускається при старті системи:
-
 ```bash
 sudo systemctl enable docker
 ```
 
-### Корисні команди
+### Оновлення бота
 
 ```bash
-# Перезапуск
-docker compose restart dtek-app
+cd ~/dtek-monitor/DtekMonitor/DtekMonitor
 
-# Оновлення після git pull
+# 1. Створіть бекап БД (ВАЖЛИВО!)
+docker exec dtek-postgres pg_dump -U postgres dtekmonitor > backup_$(date +%Y%m%d_%H%M%S).sql
+
+# 2. Оновлення
+git pull
 docker compose down
 docker compose up -d --build
 
-# Очистка старих образів
-docker image prune -f
+# 3. Перевірка
+docker compose logs -f --tail=50 dtek-app
+```
 
-# Перегляд логів
-docker compose logs -f --tail=100 dtek-app
+### Відновлення з бекапу
+
+```bash
+# Якщо щось пішло не так:
+docker compose down
+docker exec -i dtek-postgres psql -U postgres -d dtekmonitor < backup_YYYYMMDD_HHMMSS.sql
+docker compose up -d
 ```
 
 ---
@@ -396,7 +493,7 @@ DisconSchedule.fact = {
             "GPV3.2": {           // Черга (API формат)
                 "1": "yes",       // 00:00-01:00 — світло є
                 "2": "no",        // 01:00-02:00 — світла немає
-                "3": "first",     // 02:00-03:00 — частково (перша половина)
+                "3": "first",     // 02:00-03:00 — частково
                 ...
             }
         }
@@ -406,23 +503,12 @@ DisconSchedule.fact = {
 };
 ```
 
-Витягування через Playwright:
-
-```csharp
-// Спочатку пробуємо отримати напряму з JS контексту
-var jsonFromJs = await page.EvaluateAsync<string>("JSON.stringify(DisconSchedule.fact)");
-
-// Якщо не вийшло — парсимо HTML через Regex
-var match = Regex.Match(content, @"DisconSchedule\.fact\s*=\s*(\{.*?\});", RegexOptions.Singleline);
-```
-
 ### Формат черг
 
 | Відображення | API формат | Опис |
 |--------------|------------|------|
 | `1.1` | `GPV1.1` | Черга 1, підгрупа 1 |
 | `3.2` | `GPV3.2` | Черга 3, підгрупа 2 |
-| ... | ... | ... |
 | `6.2` | `GPV6.2` | Черга 6, підгрупа 2 |
 
 ### Статуси електропостачання
@@ -436,15 +522,14 @@ var match = Regex.Match(content, @"DisconSchedule\.fact\s*=\s*(\{.*?\});", Regex
 
 ### База даних
 
-**Таблиця `Subscribers`:**
+**Таблиці:**
 
-| Поле | Тип | Опис |
-|------|-----|------|
-| `ChatId` | `bigint` (PK) | Telegram Chat ID |
-| `GroupName` | `varchar(10)` | Черга (GPV формат) |
-| `Username` | `varchar(32)` | Telegram username |
-| `CreatedAt` | `timestamp` | Дата підписки |
-| `UpdatedAt` | `timestamp` | Дата оновлення |
+| Таблиця | Опис |
+|---------|------|
+| `Subscribers` | Підписки користувачів (бізнес-дані) |
+| `TelegramUsers` | Користувачі бота (Bedrock SDK) |
+| `MessageLogs` | Логи повідомлень (Bedrock SDK) |
+| `CallbackLogs` | Логи callback queries (Bedrock SDK) |
 
 ---
 
@@ -468,22 +553,20 @@ var match = Regex.Match(content, @"DisconSchedule\.fact\s*=\s*(\{.*?\});", Regex
 - WAF може блокувати запити. Перевірте логи на наявність `Incapsula`
 - Спробуйте збільшити `Scraper__WaitTimeSeconds` до 15
 
-### Як змінити інтервал перевірки?
+### Як отримати доступ до Management API?
 
-В `docker-compose.yml`:
+1. Згенеруйте API ключ: `openssl rand -hex 32`
+2. Додайте його в `.env` як `MANAGEMENT_API_KEY`
+3. Використовуйте header `X-Api-Key` в запитах
+4. Swagger UI: `http://your-server:5000/api/management/swagger`
 
-```yaml
-environment:
-  - Scraper__CheckIntervalSeconds=120  # 2 хвилини
-```
-
-### Як оновити бота?
+### Як зробити масову розсилку?
 
 ```bash
-cd ~/dtek-monitor/DtekMonitor/DtekMonitor
-git pull
-docker compose down
-docker compose up -d --build
+curl -X POST http://localhost:5000/api/management/broadcast \
+  -H "X-Api-Key: your-api-key" \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Ваше повідомлення", "parseMode": "Html"}'
 ```
 
 ---
@@ -503,4 +586,3 @@ Pull requests вітаються! Для великих змін спочатк�
 ## 📞 Підтримка
 
 Якщо виникли питання — створіть [Issue](https://github.com/your-username/dtek-monitor/issues) на GitHub.
-

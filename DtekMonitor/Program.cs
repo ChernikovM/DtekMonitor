@@ -104,7 +104,6 @@ app.UseManagementSwagger();
 // ========================================
 app.MapBedrockEndpoints(
     typeof(ManagementBuilder).Assembly           // SDK built-in queries
-    // TODO [Этап 2]: Add user's custom queries
     // typeof(Program).Assembly
 );
 
