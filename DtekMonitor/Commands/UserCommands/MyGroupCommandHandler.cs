@@ -1,14 +1,11 @@
 using System.Text;
-using DtekMonitor.Commands.Abstractions;
 using DtekMonitor.Database;
 using DtekMonitor.Models;
 using DtekMonitor.Services;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Telegram.Bot;
-using Telegram.Bot.Types;
-using Telegram.Bot.Types.Enums;
+using Spacebar.Bedrock.Telegram.Core.Commands;
+using Spacebar.Bedrock.Telegram.Core.Pipeline;
 
 namespace DtekMonitor.Commands.UserCommands;
 
@@ -17,31 +14,22 @@ namespace DtekMonitor.Commands.UserCommands;
 /// </summary>
 public class MyGroupCommandHandler : CommandHandler<MyGroupCommandHandler>
 {
-    private readonly IServiceScopeFactory _scopeFactory;
-
-    public MyGroupCommandHandler(
-        ILogger<MyGroupCommandHandler> logger,
-        IServiceScopeFactory scopeFactory) : base(logger)
+    public MyGroupCommandHandler(ILogger<MyGroupCommandHandler> logger) : base(logger)
     {
-        _scopeFactory = scopeFactory;
     }
 
     public override string CommandName => "mygroup";
     public override string Description => "Показати мою групу підписки";
+    public override IReadOnlyList<string> Aliases => ["ℹ️ Моя група"];
 
-    protected override async Task<string?> HandleCommandAsync(
-        ITelegramBotClient botClient,
-        Message message,
-        string? parameters,
-        CancellationToken cancellationToken)
+    protected override async Task<string?> ExecuteAsync(UpdateContext context)
     {
         var sb = new StringBuilder();
 
-        using var scope = _scopeFactory.CreateScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var dbContext = context.GetRequiredService<AppDbContext>();
 
         var subscriber = await dbContext.Subscribers
-            .FirstOrDefaultAsync(s => s.ChatId == message.Chat.Id, cancellationToken);
+            .FirstOrDefaultAsync(s => s.ChatId == context.ChatId, context.CancellationToken);
 
         if (subscriber is null)
         {
@@ -62,14 +50,8 @@ public class MyGroupCommandHandler : CommandHandler<MyGroupCommandHandler>
             }
         }
 
-        await botClient.SendMessage(
-            chatId: message.Chat.Id,
-            text: sb.ToString(),
-            parseMode: ParseMode.Html,
-            replyMarkup: KeyboardMarkups.MainMenuKeyboard,
-            cancellationToken: cancellationToken);
+        await SendTextMessageWithKeyboardAsync(context, sb.ToString(), KeyboardMarkups.MainMenuKeyboard);
 
         return null;
     }
 }
-

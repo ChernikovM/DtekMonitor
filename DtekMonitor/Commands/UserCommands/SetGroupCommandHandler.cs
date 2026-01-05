@@ -1,13 +1,12 @@
 using System.Text;
-using DtekMonitor.Commands.Abstractions;
 using DtekMonitor.Database;
 using DtekMonitor.Models;
 using DtekMonitor.Services;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Spacebar.Bedrock.Telegram.Core.Commands;
+using Spacebar.Bedrock.Telegram.Core.Pipeline;
 using Telegram.Bot;
-using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 
 namespace DtekMonitor.Commands.UserCommands;
@@ -17,25 +16,18 @@ namespace DtekMonitor.Commands.UserCommands;
 /// </summary>
 public class SetGroupCommandHandler : CommandHandler<SetGroupCommandHandler>
 {
-    private readonly IServiceScopeFactory _scopeFactory;
-
-    public SetGroupCommandHandler(
-        ILogger<SetGroupCommandHandler> logger,
-        IServiceScopeFactory scopeFactory) : base(logger)
+    public SetGroupCommandHandler(ILogger<SetGroupCommandHandler> logger) : base(logger)
     {
-        _scopeFactory = scopeFactory;
     }
 
     public override string CommandName => "setgroup";
     public override string Description => "Підписатися на групу відключень";
+    public override IReadOnlyList<string> Aliases => ["📊 Обрати групу"];
 
-    protected override async Task<string?> HandleCommandAsync(
-        ITelegramBotClient botClient,
-        Message message,
-        string? parameters,
-        CancellationToken cancellationToken)
+    protected override async Task<string?> ExecuteAsync(UpdateContext context)
     {
         var sb = new StringBuilder();
+        var parameters = context.CommandParameters;
 
         // If no parameters - show inline keyboard with all groups
         if (string.IsNullOrWhiteSpace(parameters))
@@ -44,14 +36,14 @@ public class SetGroupCommandHandler : CommandHandler<SetGroupCommandHandler>
             sb.AppendLine();
             sb.AppendLine("Натисніть на кнопку з номером вашої черги:");
 
-            var keyboard = CallbackQueryHandler.CreateGroupSelectionKeyboard();
+            var keyboard = ScheduleKeyboards.CreateGroupSelectionKeyboard();
 
-            await botClient.SendMessage(
-                chatId: message.Chat.Id,
+            await context.BotClient.SendMessage(
+                chatId: context.ChatId!.Value,
                 text: sb.ToString(),
                 parseMode: ParseMode.Html,
                 replyMarkup: keyboard,
-                cancellationToken: cancellationToken);
+                cancellationToken: context.CancellationToken);
 
             return null; // Don't send another message
         }
@@ -70,36 +62,35 @@ public class SetGroupCommandHandler : CommandHandler<SetGroupCommandHandler>
 
         var displayGroupName = DtekGroups.ToDisplayName(apiGroupName);
 
-        using var scope = _scopeFactory.CreateScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var dbContext = context.GetRequiredService<AppDbContext>();
 
         var subscriber = await dbContext.Subscribers
-            .FirstOrDefaultAsync(s => s.ChatId == message.Chat.Id, cancellationToken);
+            .FirstOrDefaultAsync(s => s.ChatId == context.ChatId, context.CancellationToken);
 
         if (subscriber is null)
         {
             subscriber = new Subscriber
             {
-                ChatId = message.Chat.Id,
+                ChatId = context.ChatId!.Value,
                 GroupName = apiGroupName,
-                Username = message.Chat.Username,
+                Username = context.Message?.From?.Username,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
             dbContext.Subscribers.Add(subscriber);
-            Logger.LogInformation("New subscriber: ChatId={ChatId}, Group={Group}", message.Chat.Id, apiGroupName);
+            Logger.LogInformation("New subscriber: ChatId={ChatId}, Group={Group}", context.ChatId, apiGroupName);
         }
         else
         {
             var oldGroup = subscriber.GroupName;
             subscriber.GroupName = apiGroupName;
-            subscriber.Username = message.Chat.Username;
+            subscriber.Username = context.Message?.From?.Username;
             subscriber.UpdatedAt = DateTime.UtcNow;
             Logger.LogInformation("Updated subscriber: ChatId={ChatId}, OldGroup={OldGroup}, NewGroup={NewGroup}",
-                message.Chat.Id, oldGroup, apiGroupName);
+                context.ChatId, oldGroup, apiGroupName);
         }
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        await dbContext.SaveChangesAsync(context.CancellationToken);
 
         sb.AppendLine($"✅ Ви успішно підписані на чергу <b>{displayGroupName}</b>!");
         sb.AppendLine();
@@ -107,15 +98,8 @@ public class SetGroupCommandHandler : CommandHandler<SetGroupCommandHandler>
         sb.AppendLine();
         sb.AppendLine("Натисніть <b>📅 Розклад</b> щоб переглянути графік.");
 
-        await botClient.SendMessage(
-            chatId: message.Chat.Id,
-            text: sb.ToString(),
-            parseMode: ParseMode.Html,
-            replyMarkup: KeyboardMarkups.MainMenuKeyboard,
-            cancellationToken: cancellationToken);
+        await SendTextMessageWithKeyboardAsync(context, sb.ToString(), KeyboardMarkups.MainMenuKeyboard);
 
         return null;
     }
 }
-
-

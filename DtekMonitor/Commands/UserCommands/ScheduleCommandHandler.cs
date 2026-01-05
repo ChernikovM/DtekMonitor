@@ -1,13 +1,13 @@
 using System.Text;
-using DtekMonitor.Commands.Abstractions;
 using DtekMonitor.Database;
 using DtekMonitor.Models;
 using DtekMonitor.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Spacebar.Bedrock.Telegram.Core.Commands;
+using Spacebar.Bedrock.Telegram.Core.Pipeline;
 using Telegram.Bot;
-using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 
 namespace DtekMonitor.Commands.UserCommands;
@@ -17,36 +17,27 @@ namespace DtekMonitor.Commands.UserCommands;
 /// </summary>
 public class ScheduleCommandHandler : CommandHandler<ScheduleCommandHandler>
 {
-    private readonly IServiceScopeFactory _scopeFactory;
-    private readonly DtekScraper _scraper;
-
-    public ScheduleCommandHandler(
-        ILogger<ScheduleCommandHandler> logger,
-        IServiceScopeFactory scopeFactory,
-        DtekScraper scraper) : base(logger)
+    public ScheduleCommandHandler(ILogger<ScheduleCommandHandler> logger) : base(logger)
     {
-        _scopeFactory = scopeFactory;
-        _scraper = scraper;
     }
 
     public override string CommandName => "schedule";
     public override string Description => "Показати поточний графік відключень";
+    public override IReadOnlyList<string> Aliases => ["📅 Розклад"];
 
-    protected override async Task<string?> HandleCommandAsync(
-        ITelegramBotClient botClient,
-        Message message,
-        string? parameters,
-        CancellationToken cancellationToken)
+    protected override async Task<string?> ExecuteAsync(UpdateContext context)
     {
         var sb = new StringBuilder();
 
-        using var scope = _scopeFactory.CreateScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        // Get services from context
+        var dbContext = context.GetRequiredService<AppDbContext>();
+        var scraper = context.GetRequiredService<DtekScraper>();
 
         var subscriber = await dbContext.Subscribers
-            .FirstOrDefaultAsync(s => s.ChatId == message.Chat.Id, cancellationToken);
+            .FirstOrDefaultAsync(s => s.ChatId == context.ChatId, context.CancellationToken);
 
         string groupName;
+        var parameters = context.CommandParameters;
         
         // Allow checking any group with parameter, or use subscribed group
         if (!string.IsNullOrWhiteSpace(parameters))
@@ -74,7 +65,7 @@ public class ScheduleCommandHandler : CommandHandler<ScheduleCommandHandler>
         }
 
         // Get current schedule data
-        var scheduleData = _scraper.GetLastData();
+        var scheduleData = scraper.GetLastData();
 
         if (scheduleData is null)
         {
@@ -104,17 +95,15 @@ public class ScheduleCommandHandler : CommandHandler<ScheduleCommandHandler>
 
         // Create keyboard with Today/Tomorrow buttons
         var tomorrowAvailable = ScheduleFormatter.IsTomorrowAvailable(scheduleData);
-        var keyboard = CallbackQueryHandler.CreateScheduleKeyboard(groupName, "today", tomorrowAvailable);
+        var keyboard = ScheduleKeyboards.CreateScheduleKeyboard(groupName, "today", tomorrowAvailable);
 
-        await botClient.SendMessage(
-            chatId: message.Chat.Id,
+        await context.BotClient.SendMessage(
+            chatId: context.ChatId!.Value,
             text: scheduleText,
             parseMode: ParseMode.Html,
             replyMarkup: keyboard,
-            cancellationToken: cancellationToken);
+            cancellationToken: context.CancellationToken);
 
         return null; // Don't send another message
     }
 }
-
-

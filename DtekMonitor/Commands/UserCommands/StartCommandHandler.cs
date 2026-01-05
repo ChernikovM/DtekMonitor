@@ -1,16 +1,13 @@
 using System.Text;
-using DtekMonitor.Commands.Abstractions;
-using DtekMonitor.Models;
 using DtekMonitor.Services;
 using Microsoft.Extensions.Logging;
-using Telegram.Bot;
-using Telegram.Bot.Types;
-using Telegram.Bot.Types.Enums;
+using Spacebar.Bedrock.Telegram.Core.Commands;
+using Spacebar.Bedrock.Telegram.Core.Pipeline;
 
 namespace DtekMonitor.Commands.UserCommands;
 
 /// <summary>
-/// Handles the /start command - shows welcome message and available groups
+/// Handles the /start command - shows welcome message and menu keyboard
 /// </summary>
 public class StartCommandHandler : CommandHandler<StartCommandHandler>
 {
@@ -21,11 +18,7 @@ public class StartCommandHandler : CommandHandler<StartCommandHandler>
     public override string CommandName => "start";
     public override string Description => "Почати роботу з ботом";
 
-    protected override async Task<string?> HandleCommandAsync(
-        ITelegramBotClient botClient,
-        Message message,
-        string? parameters,
-        CancellationToken cancellationToken)
+    protected override async Task<string?> ExecuteAsync(UpdateContext context)
     {
         var sb = new StringBuilder();
 
@@ -45,15 +38,8 @@ public class StartCommandHandler : CommandHandler<StartCommandHandler>
         sb.AppendLine("🚀 Почніть з кнопки <b>📊 Обрати групу</b>!");
 
         // Send message with persistent keyboard
-        await botClient.SendMessage(
-            chatId: message.Chat.Id,
-            text: sb.ToString(),
-            parseMode: ParseMode.Html,
-            replyMarkup: KeyboardMarkups.MainMenuKeyboard,
-            cancellationToken: cancellationToken);
+        await SendTextMessageWithKeyboardAsync(context, sb.ToString(), KeyboardMarkups.MainMenuKeyboard);
 
         return null; // Don't send another message
     }
 }
-
-

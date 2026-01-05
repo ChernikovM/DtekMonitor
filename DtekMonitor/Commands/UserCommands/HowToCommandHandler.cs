@@ -1,9 +1,9 @@
 using System.Text;
-using DtekMonitor.Commands.Abstractions;
 using DtekMonitor.Services;
 using Microsoft.Extensions.Logging;
+using Spacebar.Bedrock.Telegram.Core.Commands;
+using Spacebar.Bedrock.Telegram.Core.Pipeline;
 using Telegram.Bot;
-using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 
 namespace DtekMonitor.Commands.UserCommands;
@@ -21,12 +21,9 @@ public class HowToCommandHandler : CommandHandler<HowToCommandHandler>
 
     public override string CommandName => "howto";
     public override string Description => "Як дізнатись свою групу відключень";
+    public override IReadOnlyList<string> Aliases => ["❓ Як дізнатись групу"];
 
-    protected override async Task<string?> HandleCommandAsync(
-        ITelegramBotClient botClient,
-        Message message,
-        string? parameters,
-        CancellationToken cancellationToken)
+    protected override async Task<string?> ExecuteAsync(UpdateContext context)
     {
         var sb = new StringBuilder();
 
@@ -51,15 +48,14 @@ public class HowToCommandHandler : CommandHandler<HowToCommandHandler>
         sb.AppendLine();
         sb.AppendLine("💡 Після цього ви будете отримувати сповіщення про зміни в графіку!");
 
-        await botClient.SendMessage(
-            chatId: message.Chat.Id,
+        await context.BotClient.SendMessage(
+            chatId: context.ChatId!.Value,
             text: sb.ToString(),
             parseMode: ParseMode.Html,
             linkPreviewOptions: new Telegram.Bot.Types.LinkPreviewOptions { IsDisabled = true },
             replyMarkup: KeyboardMarkups.MainMenuKeyboard,
-            cancellationToken: cancellationToken);
+            cancellationToken: context.CancellationToken);
 
         return null;
     }
 }
-

@@ -66,9 +66,10 @@ builder.Services.AddBedrockTelegram()
         mgmt.UseHealth();                        // /health
         mgmt.UseInfo();                          // /info
         mgmt.UseBroadcast();                     // /broadcast - send messages to all users
-    });
-    // TODO [Этап 2]: Add command handlers
-    // .AddCommandHandlers(typeof(Program).Assembly);
+    })
+    .AddCommandHandlers(typeof(Program).Assembly); // Register all command handlers
+    // Note: SDK automatically handles button-to-command mapping via AliasResolutionMiddleware
+    // when command handlers define Aliases property
 
 // ========================================
 // 6. Existing Services (preserved)
