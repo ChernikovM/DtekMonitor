@@ -1,5 +1,6 @@
 using DtekMonitor;
 using DtekMonitor.Database;
+using DtekMonitor.Middleware;
 using DtekMonitor.Services;
 using DtekMonitor.Settings;
 using Microsoft.EntityFrameworkCore;
@@ -67,6 +68,7 @@ builder.Services.AddBedrockTelegram()
         mgmt.UseInfo();                          // /info
         mgmt.UseBroadcast();                     // /broadcast - send messages to all users
     })
+    .Use<DtekCallbackMiddleware>()              // Handle inline keyboard callbacks
     .AddCommandHandlers(typeof(Program).Assembly); // Register all command handlers
     // Note: SDK automatically handles button-to-command mapping via AliasResolutionMiddleware
     // when command handlers define Aliases property
@@ -136,8 +138,8 @@ Console.WriteLine("  with Bedrock SDK Management API");
 Console.WriteLine("===========================================");
 Console.WriteLine();
 Console.WriteLine("Bot is starting...");
-Console.WriteLine("Management API available at: /api/bedrock/tg/*");
-Console.WriteLine("Swagger UI available at: /api/bedrock/tg/swagger");
+Console.WriteLine("Management API available at: /api/management/tg/*");
+Console.WriteLine("Swagger UI available at: /api/management/tg/swagger");
 Console.WriteLine("Press Ctrl+C to stop.");
 Console.WriteLine();
 
