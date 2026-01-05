@@ -4,6 +4,9 @@ using DtekMonitor.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Telegram.Bot;
+using Telegram.Bot.Exceptions;
+using Telegram.Bot.Types.Enums;
 
 namespace DtekMonitor.Services;
 
@@ -14,16 +17,16 @@ public class NotificationService
 {
     private readonly ILogger<NotificationService> _logger;
     private readonly IServiceScopeFactory _scopeFactory;
-    private readonly BotService _botService;
+    private readonly ITelegramBotClient _botClient;
 
     public NotificationService(
         ILogger<NotificationService> logger,
         IServiceScopeFactory scopeFactory,
-        BotService botService)
+        ITelegramBotClient botClient)
     {
         _logger = logger;
         _scopeFactory = scopeFactory;
-        _botService = botService;
+        _botClient = botClient;
     }
 
     /// <summary>
@@ -79,7 +82,7 @@ public class NotificationService
 
                 foreach (var subscriber in groupSubscribers)
                 {
-                    await _botService.SendMessageAsync(subscriber.ChatId, tomorrowMessage, cancellationToken);
+                    await SendMessageAsync(subscriber.ChatId, tomorrowMessage, cancellationToken);
                     await Task.Delay(50, cancellationToken);
                 }
             }
@@ -94,7 +97,7 @@ public class NotificationService
 
                 foreach (var subscriber in groupSubscribers)
                 {
-                    await _botService.SendMessageAsync(subscriber.ChatId, message, cancellationToken);
+                    await SendMessageAsync(subscriber.ChatId, message, cancellationToken);
                     await Task.Delay(50, cancellationToken);
                 }
             }
@@ -109,10 +112,33 @@ public class NotificationService
 
                 foreach (var subscriber in groupSubscribers)
                 {
-                    await _botService.SendMessageAsync(subscriber.ChatId, message, cancellationToken);
+                    await SendMessageAsync(subscriber.ChatId, message, cancellationToken);
                     await Task.Delay(50, cancellationToken);
                 }
             }
+        }
+    }
+
+    /// <summary>
+    /// Sends a message to a specific chat with error handling
+    /// </summary>
+    private async Task SendMessageAsync(long chatId, string text, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _botClient.SendMessage(
+                chatId: chatId,
+                text: text,
+                parseMode: ParseMode.Html,
+                cancellationToken: cancellationToken);
+        }
+        catch (ApiRequestException ex) when (ex.ErrorCode == 403)
+        {
+            _logger.LogWarning("Bot was blocked by user {ChatId}", chatId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send message to {ChatId}", chatId);
         }
     }
 
@@ -251,5 +277,3 @@ public class NotificationService
         public string NewStatus { get; init; } = string.Empty;
     }
 }
-
-

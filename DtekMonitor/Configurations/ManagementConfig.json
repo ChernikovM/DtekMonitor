@@ -1,0 +1,9 @@
+{
+  "ManagementConfig": {
+    "ApiKeys": [],
+    "ManagerBotUrl": null,
+    "EnablePushNotifications": false,
+    "RoutePrefix": "api/management"
+  }
+}
+

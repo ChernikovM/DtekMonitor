@@ -1,0 +1,10 @@
+{
+  "TelegramBotConfig": {
+    "BotToken": "<secret>",
+    "BotUsername": "Testing Botsman",
+    "DropPendingUpdates": true,
+    "EnableCommandRouting": true,
+    "UnknownCommandMessage": "❓ Невідома команда. Використовуйте /start для перегляду доступних команд."
+  }
+}
+

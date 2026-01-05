@@ -1,0 +1,10 @@
+{
+  "TelegramDatabaseConfig": {
+    "Host": "localhost",
+    "Port": 5432,
+    "Database": "dtekmonitor",
+    "Username": "postgres",
+    "Password": "<secret>",
+    "Provider": "PostgreSQL"
+  }
+}

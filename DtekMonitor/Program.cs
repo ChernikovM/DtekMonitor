@@ -1,52 +1,120 @@
 using DtekMonitor;
-using DtekMonitor.Commands;
 using DtekMonitor.Database;
 using DtekMonitor.Services;
 using DtekMonitor.Settings;
 using Microsoft.EntityFrameworkCore;
+using Spacebar.Bedrock.Configurations.Extensions;
+using Spacebar.Bedrock.Cqrs;
+using Spacebar.Bedrock.Persistence.EntityFramework;
+using Spacebar.Bedrock.Telegram.Core.Configuration;
+using Spacebar.Bedrock.Telegram.Core.DependencyInjection;
+using Spacebar.Bedrock.Telegram.Core.Features.MessageLogging;
+using Spacebar.Bedrock.Telegram.Management.Configuration;
+using Spacebar.Bedrock.Telegram.Management.DependencyInjection;
+using Spacebar.Bedrock.Telegram.Management.Endpoints;
+using Spacebar.Bedrock.Telegram.Management.Swagger;
 
-var builder = Host.CreateApplicationBuilder(args);
+// Create web application builder (instead of Host.CreateApplicationBuilder)
+var builder = WebApplication.CreateBuilder(args);
 
-// Configuration
-builder.Services.Configure<TelegramSettings>(
-    builder.Configuration.GetSection(TelegramSettings.SectionName));
+// ========================================
+// 1. Bedrock Configurations
+// ========================================
+// Auto-loads TelegramBotConfig, TelegramDatabaseConfig from JSON files in Configurations/
+builder.AddBedrockConfigurations(typeof(TelegramDatabaseConfig).Assembly);
+builder.AddConfiguration<ManagementConfig>();
+
+// Legacy configuration for Scraper (keep existing settings)
 builder.Services.Configure<ScraperSettings>(
     builder.Configuration.GetSection(ScraperSettings.SectionName));
 
-// Database
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(connectionString));
+// ========================================
+// 2. Bedrock CQRS (required for Management API endpoints)
+// ========================================
+builder.Services.AddBedrockCqrs(
+    typeof(Program).Assembly,                     // User's queries (future)
+    typeof(ManagementBuilder).Assembly            // SDK built-in queries
+);
 
-// Register command handlers
-CommandHandlerRegistry.RegisterAllHandlers(builder.Services);
+// ========================================
+// 3. Bedrock Persistence (EF Core)
+// ========================================
+builder.Services.AddBedrockEfPersistence();
 
-// Services (Singletons that manage their own lifecycle)
+// ========================================
+// 4. Database (PostgreSQL)
+// ========================================
+builder.Services.AddDbContext<AppDbContext>((serviceProvider, options) =>
+{
+    var dbConfig = serviceProvider.GetRequiredService<TelegramDatabaseConfig>();
+    options.UseNpgsql(dbConfig.BuildConnectionString());
+});
+
+// ========================================
+// 5. Bedrock Telegram Bot with Management API
+// ========================================
+builder.Services.AddBedrockTelegram()
+    .UseDbContext<AppDbContext>()               // Single DbContext registration
+    .WithMessageLogging(opts =>                  // Enable message logging feature
+    {
+        opts.LogMessageContent = true;
+        opts.LogCommandsOnly = false;
+    })
+    .WithManagement(mgmt =>                      // Enable Management API
+    {
+        mgmt.UseStats();                         // /stats, /stats/users, /stats/messages
+        mgmt.UseHealth();                        // /health
+        mgmt.UseInfo();                          // /info
+        mgmt.UseBroadcast();                     // /broadcast - send messages to all users
+    });
+    // TODO [Этап 2]: Add command handlers
+    // .AddCommandHandlers(typeof(Program).Assembly);
+
+// ========================================
+// 6. Existing Services (preserved)
+// ========================================
+// DtekScraper - singleton for fetching schedule data
 builder.Services.AddSingleton<DtekScraper>();
 
-// Callback query handler (scoped - needs DbContext)
-builder.Services.AddScoped<CallbackQueryHandler>();
-
-// BotService needs to be registered as Singleton first, then as HostedService
-// This allows other services (like NotificationService) to inject it
-builder.Services.AddSingleton<BotService>();
-builder.Services.AddHostedService(provider => provider.GetRequiredService<BotService>());
-
-// NotificationService depends on BotService, so register after
+// NotificationService - now uses ITelegramBotClient from DI
 builder.Services.AddSingleton<NotificationService>();
 
-// Worker as background service
+// Worker - background service for monitoring DTEK schedule
 builder.Services.AddHostedService<Worker>();
 
-var host = builder.Build();
+// ========================================
+// Build Application
+// ========================================
+var app = builder.Build();
 
-// Ensure database is created
-using (var scope = host.Services.CreateScope())
+// ========================================
+// 7. HTTP Pipeline
+// ========================================
+app.UseAuthentication();
+app.UseAuthorization();
+
+// Swagger UI for Management API
+app.UseManagementSwagger();
+
+// ========================================
+// 8. Map Bedrock CQRS endpoints
+// ========================================
+app.MapBedrockEndpoints(
+    typeof(ManagementBuilder).Assembly           // SDK built-in queries
+    // TODO [Этап 2]: Add user's custom queries
+    // typeof(Program).Assembly
+);
+
+// ========================================
+// 9. Initialize Database
+// ========================================
+using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     
     try
     {
+        // Note: In production, use migrations instead of EnsureCreated
         await dbContext.Database.EnsureCreatedAsync();
         Console.WriteLine("Database initialized successfully");
     }
@@ -57,4 +125,19 @@ using (var scope = host.Services.CreateScope())
     }
 }
 
-await host.RunAsync();
+// ========================================
+// 10. Startup Banner
+// ========================================
+Console.WriteLine();
+Console.WriteLine("===========================================");
+Console.WriteLine("  DTEK Monitor Bot");
+Console.WriteLine("  with Bedrock SDK Management API");
+Console.WriteLine("===========================================");
+Console.WriteLine();
+Console.WriteLine("Bot is starting...");
+Console.WriteLine("Management API available at: /api/bedrock/tg/*");
+Console.WriteLine("Swagger UI available at: /api/bedrock/tg/swagger");
+Console.WriteLine("Press Ctrl+C to stop.");
+Console.WriteLine();
+
+await app.RunAsync();
