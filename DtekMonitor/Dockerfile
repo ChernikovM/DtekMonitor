@@ -2,17 +2,25 @@
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
 
-# Copy csproj and restore dependencies
+# GitHub token for private NuGet packages (passed as build arg)
+ARG GITHUB_TOKEN
+ENV GITHUB_TOKEN=${GITHUB_TOKEN}
+
+# Copy NuGet.config and csproj first for better layer caching
+COPY ["NuGet.config", "./"]
 COPY ["DtekMonitor.csproj", "./"]
-RUN dotnet restore "DtekMonitor.csproj"
+
+# Restore with GitHub Packages authentication
+# The token is substituted from environment variable in NuGet.config
+RUN dotnet restore "DtekMonitor.csproj" --configfile NuGet.config
 
 # Copy everything else and build
 COPY . .
-RUN dotnet build "DtekMonitor.csproj" -c Release -o /app/build
+RUN dotnet build "DtekMonitor.csproj" -c Release -o /app/build --no-restore
 
 # Publish
 FROM build AS publish
-RUN dotnet publish "DtekMonitor.csproj" -c Release -o /app/publish /p:UseAppHost=false
+RUN dotnet publish "DtekMonitor.csproj" -c Release -o /app/publish /p:UseAppHost=false --no-restore
 
 # Runtime stage - using Playwright base image with all required dependencies
 FROM mcr.microsoft.com/playwright/dotnet:v1.48.0-jammy AS final

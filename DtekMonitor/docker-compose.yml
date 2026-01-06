@@ -3,6 +3,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        # GitHub token for private NuGet packages (from .env)
+        GITHUB_TOKEN: ${GITHUB_TOKEN}
     container_name: dtek-monitor
     restart: unless-stopped
     ports:
