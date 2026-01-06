@@ -1,0 +1,57 @@
+# ===========================================
+# TEST ENVIRONMENT - separate from production
+# ===========================================
+# Usage: docker compose -f docker-compose.test.yml up -d --build
+# ===========================================
+
+services:
+  dtek-app-test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        GITHUB_TOKEN: ${GITHUB_TOKEN}
+    container_name: dtek-monitor-test
+    restart: unless-stopped
+    ports:
+      - "5099:5000"  # Different port for test (external:internal)
+    environment:
+      - TZ=Europe/Kiev
+      - TelegramBotConfig__BotToken=${TELEGRAM_BOT_TOKEN}
+      - TelegramDatabaseConfig__Host=postgres-test
+      - TelegramDatabaseConfig__Password=${POSTGRES_PASSWORD}
+      - ManagementConfig__ApiKeys__0=${MANAGEMENT_API_KEY}
+      - Scraper__CheckIntervalSeconds=60
+      - Scraper__WaitTimeSeconds=10
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+    networks:
+      - dtek-network-test
+
+  postgres-test:
+    image: postgres:16-alpine
+    container_name: dtek-postgres-test
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=dtekmonitor_test
+      - TZ=Europe/Kiev
+    volumes:
+      - postgres-data-test:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d dtekmonitor_test"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - dtek-network-test
+
+networks:
+  dtek-network-test:
+    driver: bridge
+
+volumes:
+  postgres-data-test:
+
