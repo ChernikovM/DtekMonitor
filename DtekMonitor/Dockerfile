@@ -1,69 +1,37 @@
-# Build stage
+# === Stage 1: Build ===
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
 
-# GitHub token for private NuGet packages (passed as build arg)
 ARG GITHUB_TOKEN
 ENV GITHUB_TOKEN=${GITHUB_TOKEN}
 
-# Copy NuGet.config and csproj first for better layer caching
 COPY ["NuGet.config", "./"]
 COPY ["DtekMonitor.csproj", "./"]
 
-# Restore with GitHub Packages authentication
 RUN dotnet restore "DtekMonitor.csproj" --configfile NuGet.config
 
-# 3. CACHING PLAYWRIGHT
-RUN dotnet tool install --global Microsoft.Playwright.CLI
-ENV PATH="$PATH:/root/.dotnet/tools"
-RUN playwright install chromium
-
-# Copy everything else and build
 COPY . .
-RUN dotnet build "DtekMonitor.csproj" -c Release -o /app/build --no-restore
-
-# Publish
-FROM build AS publish
 RUN dotnet publish "DtekMonitor.csproj" -c Release -o /app/publish /p:UseAppHost=false --no-restore
 
-# Runtime stage
-FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS final
+# === Stage 2: Runtime (Clean & Cached) ===
+# Используем официальный образ Playwright. 
+# ВАЖНО: Замените 'v1.49.0' на версию вашего NuGet пакета Microsoft.Playwright!
+# Этот образ уже содержит: .NET SDK/Runtime, Chromium, WebKit, Firefox и все системные либы.
+FROM mcr.microsoft.com/playwright/dotnet:v1.48.0 AS final
+
 WORKDIR /app
 
-# Install Playwright system dependencies
-RUN apt-get update && apt-get install -y \
-    libnss3 \
-    libnspr4 \
-    libatk1.0-0 \
-    libatk-bridge2.0-0 \
-    libcups2 \
-    libdrm2 \
-    libdbus-1-3 \
-    libxkbcommon0 \
-    libatspi2.0-0 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxfixes3 \
-    libxrandr2 \
-    libgbm1 \
-    libasound2 \
-    libpango-1.0-0 \
-    libcairo2 \
-    libx11-xcb1 \
-    && rm -rf /var/lib/apt/lists/*
-
-# Set timezone
+# Настраиваем часовой пояс
 ENV TZ=Europe/Kiev
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
-COPY --from=publish /app/publish .
-
-COPY --from=build /root/.cache/ms-playwright /root/.cache/ms-playwright
+# Копируем сбилженное приложение
+COPY --from=build /app/publish .
 
 ENV DOTNET_RUNNING_IN_CONTAINER=true
 ENV ASPNETCORE_ENVIRONMENT=Production
 
-# Expose port for Management API
+# Порт Management API
 EXPOSE 5000
 
 ENTRYPOINT ["dotnet", "DtekMonitor.dll"]
