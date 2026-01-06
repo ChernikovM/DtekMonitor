@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1.4
+
 # === Stage 1: Build ===
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
@@ -14,17 +16,20 @@ RUN dotnet restore "DtekMonitor.csproj" --configfile NuGet.config
 COPY . .
 RUN dotnet publish "DtekMonitor.csproj" -c Release -o /app/publish /p:UseAppHost=false --no-restore
 
-# === Stage 2: Install Playwright browsers ===
+# === Stage 2: Install Playwright browsers (CACHED!) ===
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS playwright
 WORKDIR /app
 
-# Copy published app
-COPY --from=build /app/publish .
-
-# Install Playwright CLI and download Chromium
+# Install Playwright CLI
 RUN dotnet tool install --global Microsoft.Playwright.CLI --version 1.57.0
 ENV PATH="$PATH:/root/.dotnet/tools"
-RUN playwright install chromium
+
+# Download Chromium with BuildKit cache mount
+# This cache persists between builds!
+RUN --mount=type=cache,target=/root/.cache/ms-playwright,id=playwright-cache \
+    playwright install chromium && \
+    cp -r /root/.cache/ms-playwright /playwright-browsers
+
 RUN playwright install-deps chromium
 
 # === Stage 3: Runtime ===
@@ -57,8 +62,8 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 # Copy published app
 COPY --from=build /app/publish .
 
-# Copy Playwright browsers from playwright stage
-COPY --from=playwright /root/.cache/ms-playwright /root/.cache/ms-playwright
+# Copy Playwright browsers from cache
+COPY --from=playwright /playwright-browsers /root/.cache/ms-playwright
 
 ENV DOTNET_RUNNING_IN_CONTAINER=true
 ENV ASPNETCORE_ENVIRONMENT=Production
