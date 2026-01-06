@@ -20,22 +20,24 @@ RUN dotnet publish "DtekMonitor.csproj" -c Release -o /app/publish /p:UseAppHost
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS playwright
 WORKDIR /app
 
-# Copy published app (contains playwright.ps1)
+# Copy published app
 COPY --from=build /app/publish .
 
-# Install PowerShell (required for playwright.ps1)
-RUN apt-get update && apt-get install -y --no-install-recommends powershell \
-    && rm -rf /var/lib/apt/lists/*
+# Install PowerShell from Microsoft repository
+RUN apt-get update && \
+    apt-get install -y wget apt-transport-https software-properties-common && \
+    wget -q https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb && \
+    dpkg -i packages-microsoft-prod.deb && \
+    rm packages-microsoft-prod.deb && \
+    apt-get update && \
+    apt-get install -y powershell && \
+    rm -rf /var/lib/apt/lists/*
 
 # Download Chromium with BuildKit cache mount
-# This cache persists between builds!
 RUN --mount=type=cache,target=/root/.cache/ms-playwright,id=playwright-cache \
     pwsh playwright.ps1 install chromium && \
     mkdir -p /playwright-browsers && \
     cp -r /root/.cache/ms-playwright/* /playwright-browsers/
-
-# Install system dependencies for Chromium
-RUN pwsh playwright.ps1 install-deps chromium
 
 # === Stage 3: Runtime ===
 FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS final
