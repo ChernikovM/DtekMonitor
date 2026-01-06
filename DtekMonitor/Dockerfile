@@ -1,22 +1,24 @@
-# Build stage
+# === Build Stage ===
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
 
 ARG GITHUB_TOKEN
 ENV GITHUB_TOKEN=${GITHUB_TOKEN}
 
+# 1. Задаем путь для браузеров ЯВНО, чтобы знать, где они лежат
+ENV PLAYWRIGHT_BROWSERS_PATH=/pw-browsers
+
 COPY ["NuGet.config", "./"]
 COPY ["DtekMonitor.csproj", "./"]
 
-# 1. Скачиваем пакеты (в том числе Playwright 1.57.0)
+# 2. Восстанавливаем пакеты (качается Playwright 1.57.0)
 RUN dotnet restore "DtekMonitor.csproj" --configfile NuGet.config
 
-# 2. === ГЛАВНЫЙ ФИКС КЕША ===
-# Мы не ждем билда. Мы берем скрипт прямо из скачанного NuGet пакета.
-# Так как это происходит ДО "COPY . .", браузеры закешируются навсегда (пока не сменишь версию пакета).
+# 3. Устанавливаем браузеры в нашу папку /pw-browsers
+# Мы делаем это ДО копирования кода (COPY . .), чтобы слой закешировался.
 RUN pwsh /root/.nuget/packages/microsoft.playwright/1.57.0/build/playwright.ps1 install chromium
 
-# 3. Теперь копируем код и билдим
+# 4. Копируем код и билдим
 COPY . .
 RUN dotnet build "DtekMonitor.csproj" -c Release -o /app/build --no-restore
 
@@ -24,11 +26,11 @@ RUN dotnet build "DtekMonitor.csproj" -c Release -o /app/build --no-restore
 FROM build AS publish
 RUN dotnet publish "DtekMonitor.csproj" -c Release -o /app/publish /p:UseAppHost=false --no-restore
 
-# Runtime stage
+# === Runtime Stage ===
 FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS final
 WORKDIR /app
 
-# Твои системные зависимости (оставляем как было, это правильно)
+# Важные системные зависимости
 RUN apt-get update && apt-get install -y \
     libnss3 \
     libnspr4 \
@@ -53,11 +55,14 @@ RUN apt-get update && apt-get install -y \
 ENV TZ=Europe/Kiev
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
-# Копируем само приложение
+# Копируем приложение
 COPY --from=publish /app/publish .
 
-# 4. Копируем БРАУЗЕРЫ из стадии build (они лежат в папке root)
-COPY --from=build /root/.cache/ms-playwright /root/.cache/ms-playwright
+# 5. ГЛАВНОЕ ИСПРАВЛЕНИЕ:
+# Указываем приложению, где искать браузеры
+ENV PLAYWRIGHT_BROWSERS_PATH=/pw-browsers
+# Копируем папку с браузерами из стадии build
+COPY --from=build /pw-browsers /pw-browsers
 
 ENV DOTNET_RUNNING_IN_CONTAINER=true
 ENV ASPNETCORE_ENVIRONMENT=Production
