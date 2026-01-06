@@ -23,11 +23,11 @@
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     
     <!-- Bedrock SDK (from GitHub Packages) -->
-    <PackageReference Include="Spacebar.Bedrock.Configurations" Version="0.0.0-alpha.0.7" />
-    <PackageReference Include="Spacebar.Bedrock.Cqrs" Version="0.0.0-alpha.0.7" />
-    <PackageReference Include="Spacebar.Bedrock.Persistence.EntityFramework" Version="0.0.0-alpha.0.7" />
-    <PackageReference Include="Spacebar.Bedrock.Telegram.Core" Version="0.0.0-alpha.0.7" />
-    <PackageReference Include="Spacebar.Bedrock.Telegram.Management" Version="0.0.0-alpha.0.7" />
+    <PackageReference Include="Spacebar.Bedrock.Configurations" Version="0.0.0-alpha.0.12" />
+    <PackageReference Include="Spacebar.Bedrock.Cqrs" Version="0.0.0-alpha.0.12" />
+    <PackageReference Include="Spacebar.Bedrock.Persistence.EntityFramework" Version="0.0.0-alpha.0.12" />
+    <PackageReference Include="Spacebar.Bedrock.Telegram.Core" Version="0.0.0-alpha.0.12" />
+    <PackageReference Include="Spacebar.Bedrock.Telegram.Management" Version="0.0.0-alpha.0.12" />
   </ItemGroup>
 
   <!-- Configuration files: Copy to Output Directory -->
