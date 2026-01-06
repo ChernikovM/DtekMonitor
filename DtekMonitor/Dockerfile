@@ -13,6 +13,11 @@ COPY ["DtekMonitor.csproj", "./"]
 # Restore with GitHub Packages authentication
 RUN dotnet restore "DtekMonitor.csproj" --configfile NuGet.config
 
+# 3. CACHING PLAYWRIGHT
+RUN dotnet tool install --global Microsoft.Playwright.CLI
+ENV PATH="$PATH:/root/.dotnet/tools"
+RUN playwright install chromium
+
 # Copy everything else and build
 COPY . .
 RUN dotnet build "DtekMonitor.csproj" -c Release -o /app/build --no-restore
@@ -21,12 +26,7 @@ RUN dotnet build "DtekMonitor.csproj" -c Release -o /app/build --no-restore
 FROM build AS publish
 RUN dotnet publish "DtekMonitor.csproj" -c Release -o /app/publish /p:UseAppHost=false --no-restore
 
-# Install Playwright browsers in publish stage
-WORKDIR /app/publish
-RUN pwsh playwright.ps1 install chromium
-RUN pwsh playwright.ps1 install-deps chromium
-
-# Runtime stage - .NET 9.0 (Debian-based)
+# Runtime stage
 FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS final
 WORKDIR /app
 
@@ -56,11 +56,10 @@ RUN apt-get update && apt-get install -y \
 ENV TZ=Europe/Kiev
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
-# Copy published app with Playwright browsers
 COPY --from=publish /app/publish .
-COPY --from=publish /root/.cache/ms-playwright /root/.cache/ms-playwright
 
-# Set environment variables
+COPY --from=build /root/.cache/ms-playwright /root/.cache/ms-playwright
+
 ENV DOTNET_RUNNING_IN_CONTAINER=true
 ENV ASPNETCORE_ENVIRONMENT=Production
 
