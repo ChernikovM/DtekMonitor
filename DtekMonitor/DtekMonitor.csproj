@@ -19,7 +19,7 @@
     </PackageReference>
     
     <!-- Scraping -->
-    <PackageReference Include="Microsoft.Playwright" Version="1.48.0" />
+    <PackageReference Include="Microsoft.Playwright" Version="1.57.0" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     
     <!-- Bedrock SDK (from GitHub Packages) -->

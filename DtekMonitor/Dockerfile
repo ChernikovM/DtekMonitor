@@ -1,4 +1,4 @@
-# === Build Stage ===
+# Build stage
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
 
@@ -8,23 +8,27 @@ ENV GITHUB_TOKEN=${GITHUB_TOKEN}
 COPY ["NuGet.config", "./"]
 COPY ["DtekMonitor.csproj", "./"]
 
+# 1. Скачиваем пакеты (в том числе Playwright 1.57.0)
 RUN dotnet restore "DtekMonitor.csproj" --configfile NuGet.config
 
-# --- FIX: КЕШИРОВАНИЕ БРАУЗЕРОВ ---
-RUN dotnet tool install --global Microsoft.Playwright.CLI
-ENV PATH="$PATH:/root/.dotnet/tools"
-# Качаем браузеры в слой build
-RUN playwright install chromium
+# 2. === ГЛАВНЫЙ ФИКС КЕША ===
+# Мы не ждем билда. Мы берем скрипт прямо из скачанного NuGet пакета.
+# Так как это происходит ДО "COPY . .", браузеры закешируются навсегда (пока не сменишь версию пакета).
+RUN pwsh /root/.nuget/packages/microsoft.playwright/1.57.0/build/playwright.ps1 install chromium
 
-# --- СБОРКА КОДА ---
+# 3. Теперь копируем код и билдим
 COPY . .
+RUN dotnet build "DtekMonitor.csproj" -c Release -o /app/build --no-restore
+
+# Publish
+FROM build AS publish
 RUN dotnet publish "DtekMonitor.csproj" -c Release -o /app/publish /p:UseAppHost=false --no-restore
 
-# === Runtime Stage (Production) ===
+# Runtime stage
 FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS final
 WORKDIR /app
 
-# Устанавливаем зависимости для Linux
+# Твои системные зависимости (оставляем как было, это правильно)
 RUN apt-get update && apt-get install -y \
     libnss3 \
     libnspr4 \
@@ -49,16 +53,15 @@ RUN apt-get update && apt-get install -y \
 ENV TZ=Europe/Kiev
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
-# --- ИСПРАВЛЕНИЕ ЗДЕСЬ ---
-# Было --from=publish (ошибка), стало --from=build (правильно)
-COPY --from=build /app/publish .
+# Копируем само приложение
+COPY --from=publish /app/publish .
 
-# Копируем браузеры из стадии build
+# 4. Копируем БРАУЗЕРЫ из стадии build (они лежат в папке root)
 COPY --from=build /root/.cache/ms-playwright /root/.cache/ms-playwright
 
 ENV DOTNET_RUNNING_IN_CONTAINER=true
 ENV ASPNETCORE_ENVIRONMENT=Production
 
-EXPOSE 5001
+EXPOSE 5000
 
 ENTRYPOINT ["dotnet", "DtekMonitor.dll"]
