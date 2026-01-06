@@ -108,22 +108,38 @@ app.MapBedrockEndpoints(
 );
 
 // ========================================
-// 9. Initialize Database
+// 9. Apply Database Migrations
 // ========================================
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
     
     try
     {
-        // Note: In production, use migrations instead of EnsureCreated
-        await dbContext.Database.EnsureCreatedAsync();
-        Console.WriteLine("Database initialized successfully");
+        var pendingMigrations = await dbContext.Database.GetPendingMigrationsAsync();
+        var pendingCount = pendingMigrations.Count();
+        
+        if (pendingCount > 0)
+        {
+            logger.LogInformation("Applying {Count} pending migration(s)...", pendingCount);
+            foreach (var migration in pendingMigrations)
+            {
+                logger.LogInformation("  - {Migration}", migration);
+            }
+            
+            await dbContext.Database.MigrateAsync();
+            logger.LogInformation("Database migrations applied successfully");
+        }
+        else
+        {
+            logger.LogInformation("Database is up to date - no pending migrations");
+        }
     }
     catch (Exception ex)
     {
-        Console.WriteLine($"Warning: Could not initialize database: {ex.Message}");
-        Console.WriteLine("The application will continue, but database operations may fail.");
+        logger.LogError(ex, "Failed to apply database migrations: {Message}", ex.Message);
+        throw; // Fail fast - don't start the app with broken database
     }
 }
 
