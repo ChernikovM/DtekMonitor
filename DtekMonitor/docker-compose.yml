@@ -9,7 +9,7 @@ services:
     container_name: dtek-monitor
     restart: unless-stopped
     ports:
-      - "5000:5000"  # Management API (Swagger, Analytics, Broadcast)
+      - "5000:8080"  # Management API (Swagger, Analytics, Broadcast)
     environment:
       - TZ=Europe/Kiev
       # === Telegram Bot Config (secret from .env) ===

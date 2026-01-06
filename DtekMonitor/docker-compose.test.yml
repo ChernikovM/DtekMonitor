@@ -14,7 +14,7 @@ services:
     container_name: dtek-monitor-test
     restart: unless-stopped
     ports:
-      - "5099:5000"  # Different port for test (external:internal)
+      - "5099:8080"  # Different port for test (external:internal, app listens on 8080)
     environment:
       - TZ=Europe/Kiev
       - TelegramBotConfig__BotToken=${TELEGRAM_BOT_TOKEN}
