@@ -26,8 +26,8 @@ WORKDIR /app/publish
 RUN pwsh playwright.ps1 install chromium
 RUN pwsh playwright.ps1 install-deps chromium
 
-# Runtime stage - .NET 9.0 with Playwright dependencies
-FROM mcr.microsoft.com/dotnet/aspnet:9.0-jammy AS final
+# Runtime stage - .NET 9.0 (Debian-based)
+FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS final
 WORKDIR /app
 
 # Install Playwright system dependencies
